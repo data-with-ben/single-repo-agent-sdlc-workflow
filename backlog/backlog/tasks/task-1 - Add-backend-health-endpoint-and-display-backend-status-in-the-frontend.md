@@ -1,15 +1,18 @@
 ---
 id: TASK-1
 title: Add backend health endpoint and display backend status in the frontend
-status: To Do
-assignee: []
+status: Intake
+assignee:
+  - '@agent'
 created_date: '2026-06-05 14:11'
-updated_date: '2026-06-05 14:13'
+updated_date: '2026-06-05 15:00'
 labels:
   - backend
   - frontend
   - integration
 dependencies: []
+references:
+  - feature/task-1-health-endpoint-frontend-status
 priority: high
 ---
 

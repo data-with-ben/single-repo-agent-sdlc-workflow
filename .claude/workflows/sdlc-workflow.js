@@ -20,7 +20,12 @@ const requestedTaskId = cfg.taskId || (typeof args === 'string' && args.trim() ?
 const gates = cfg.gates || {} // { intake: bool, plan: bool, codeReview: bool } — all default OFF, matching "skip by default"
 
 // ---------------- variable bindings (workflow skill: "Variable bindings") ----------------
-const state = { id: null, title: null, branch: null, worktree: null }
+// taskContent: verbatim output of `backlog task <id> --plain` captured at assess-task; passed forward so
+//   later agents skip the CLI re-read for the static parts (ACs, description).
+// planSummary: the implementation plan written by plan-task; passed to hostile-review and implement.
+// implContext: {filesChanged, approachSummary} from implement; passed to verify/test/notes/review so
+//   those agents can target specific files rather than scanning the full diff.
+const state = { id: null, title: null, branch: null, worktree: null, taskContent: null, planSummary: null, implContext: null }
 
 // ---------------- schemas ----------------
 const STEP_SCHEMA = {
@@ -103,7 +108,68 @@ const AUDIT_TAIL_SCHEMA = {
   required: ['selfImpBlocked', 'selfImpSignal', 'selfImpDetail', 'mergeGuardBlocked', 'mergeGuardSignal', 'mergeGuardDetail'],
 }
 
+// Extended schemas that carry context forward to avoid downstream re-reads
+const ASSESS_SCHEMA = {
+  type: 'object',
+  properties: {
+    signal: { type: 'string' },
+    blocked: { type: 'boolean' },
+    detail: { type: 'string' },
+    taskContent: { type: 'string', description: 'Verbatim output of `backlog task <id> --plain` so downstream agents can skip re-reading it' },
+  },
+  required: ['signal', 'blocked', 'detail', 'taskContent'],
+}
+
+const PLAN_SCHEMA = {
+  type: 'object',
+  properties: {
+    signal: { type: 'string' },
+    blocked: { type: 'boolean' },
+    detail: { type: 'string' },
+    planSummary: { type: 'string', description: 'The complete implementation plan as written to the task notes (verbatim or full reproduction)' },
+  },
+  required: ['signal', 'blocked', 'detail', 'planSummary'],
+}
+
+const IMPLEMENT_SCHEMA = {
+  type: 'object',
+  properties: {
+    signal: { type: 'string' },
+    blocked: { type: 'boolean' },
+    detail: { type: 'string' },
+    filesChanged: { type: 'array', items: { type: 'string' }, description: 'Relative paths (from repo root) of every file created or modified' },
+    approachSummary: { type: 'string', description: '3–6 sentence summary of what was implemented, key technical decisions, and any deviations from the plan' },
+  },
+  required: ['signal', 'blocked', 'detail', 'filesChanged', 'approachSummary'],
+}
+
 // ---------------- helpers ----------------
+
+// Builds a pre-loaded context block so downstream agents can skip redundant CLI reads.
+// task notes grow over time (plan, review findings, etc. are appended), so taskContent
+// covers only the static parts (ACs, description). planSummary and implContext are
+// captured explicitly from the steps that produce them and are always current.
+function contextCapsule() {
+  const parts = []
+  if (state.taskContent) {
+    parts.push(
+      `Task content — use this instead of running \`backlog task ${state.id} --plain\` for the static fields (title, description, acceptance criteria). Re-run the CLI only if you need notes appended after this point (e.g., hostile review findings, implementation notes).\n\`\`\`\n${state.taskContent}\n\`\`\``
+    )
+  }
+  if (state.planSummary) {
+    parts.push(`Implementation plan (written by plan-task — use this instead of re-reading the task notes for the plan):\n\`\`\`\n${state.planSummary}\n\`\`\``)
+  }
+  if (state.implContext) {
+    parts.push(
+      `Implementation context (captured from implement — use this instead of running git diff/status for an overview):\n` +
+      `Files changed: ${state.implContext.filesChanged.join(', ')}\n` +
+      `Approach: ${state.implContext.approachSummary}`
+    )
+  }
+  if (!parts.length) return null
+  return `CONTEXT CAPSULE — pre-loaded to avoid redundant reads:\n\n${parts.join('\n\n')}`
+}
+
 function skillPrompt(skill, extra) {
   const skillFile = state.worktree
     ? `${state.worktree}/.claude/skills/${skill}/SKILL.md`
@@ -116,6 +182,7 @@ function skillPrompt(skill, extra) {
     `Read the skill instructions at ${skillFile} and execute them exactly as written. (If a Skill tool listing "${skill}" is available to you, you may invoke it instead — same effect.)`,
     state.id ? `Task: ${state.id} — ${state.title}` : null,
     state.branch ? `Feature branch: ${state.branch}` : null,
+    contextCapsule(),
     `AUTONOMY OVERRIDE: run fully autonomously. Never pause to ask the user for confirmation. The manage-backlog-tasks skill's guidance to "share the plan and ask for confirmation" is overridden — ignore it.`,
     `TASK RULE: never edit backlog task files directly — always use the backlog CLI per the manage-backlog-tasks skill.`,
     `COMMIT DISCIPLINE: do NOT create git commits in this step — let changes accumulate in the worktree's working tree. Exception: only if this skill's own instructions explicitly commit (commit / closeout / gate exit paths).`,
@@ -136,6 +203,7 @@ function batchPrompt(skills, extra) {
       : `WORKING ROOT: main repo checkout.`,
     state.id ? `Task: ${state.id} — ${state.title}` : null,
     state.branch ? `Feature branch: ${state.branch}` : null,
+    contextCapsule(),
     `Skills to run in order:\n${skillList}`,
     `AUTONOMY OVERRIDE: run fully autonomously. Never pause for confirmation.`,
     `TASK RULE: never edit backlog task files directly — always use the backlog CLI.`,
@@ -199,11 +267,12 @@ log(`Worktree: ${state.worktree} — all subsequent steps run from here`)
 // ============================================================
 // Step 3: Assess task definition
 // ============================================================
-const assess = await runSkill('assess-task', 'Assess')
+const assess = await runSkill('assess-task', 'Assess', `Return the full verbatim output of \`backlog task ${state.id} --plain\` in the taskContent field.`, ASSESS_SCHEMA)
 if (assess.blocked) {
   await commitExit(`TASK_REFINEMENT_NEEDED — ${assess.detail}`, 'Assess')
   return blocked(assess.signal || assess.detail)
 }
+if (assess.taskContent) state.taskContent = assess.taskContent
 
 // ============================================================
 // Step 3b (optional): Human intake approval gate — skip by default
@@ -218,7 +287,15 @@ if (gates.intake) {
 // ============================================================
 let planFeedback = ''
 for (let attempt = 0; ; attempt++) {
-  await runSkill('plan-task', 'Plan', planFeedback ? `REVISION PASS: a previous plan was rejected by hostile review. Revise the plan to fully address these blocking issues:\n${planFeedback}` : null)
+  const pt = await runSkill(
+    'plan-task', 'Plan',
+    [
+      planFeedback ? `REVISION PASS: a previous plan was rejected by hostile review. Revise the plan to fully address these blocking issues:\n${planFeedback}` : null,
+      `Return the complete plan text in the planSummary field so the hostile reviewer and implementer can use it without re-reading the task.`,
+    ].filter(Boolean).join('\n\n'),
+    PLAN_SCHEMA,
+  )
+  if (pt && pt.planSummary) state.planSummary = pt.planSummary
   const hostile = await runSkill('hostile-plan-review', 'Plan')
   if (!hostile.blocked) break
   if (attempt >= 2) return blocked(`plan failed after 2 retries — ${hostile.detail}`)
@@ -246,8 +323,16 @@ let implementFeedback = ''
 
 while (true) {
   // Step 5: Implement
-  await runSkill('implement', 'Implement', implementFeedback ? `RETURN-TO-IMPLEMENT PASS: address ONLY the following issues from a downstream step — do not expand scope:\n${implementFeedback}` : null)
+  const impl = await runSkill(
+    'implement', 'Implement',
+    [
+      implementFeedback ? `RETURN-TO-IMPLEMENT PASS: address ONLY the following issues from a downstream step — do not expand scope:\n${implementFeedback}` : null,
+      `Return all modified/created file paths in filesChanged and a brief approach summary in approachSummary so downstream agents can target those files without re-scanning the full diff.`,
+    ].filter(Boolean).join('\n\n'),
+    IMPLEMENT_SCHEMA,
+  )
   implementFeedback = ''
+  if (impl && impl.filesChanged) state.implContext = { filesChanged: impl.filesChanged, approachSummary: impl.approachSummary || '' }
 
   // Steps 6–9: verify-ac → unit-tests → e2e-tests → implementation-notes (batched — one agent, one context load)
   const vb = await agent(
