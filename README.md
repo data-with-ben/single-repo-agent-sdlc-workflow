@@ -29,6 +29,11 @@ This is a mono-repo. All four project areas live as top-level subdirectories:
    cd backlog && backlog init && cd ..
    ```
 
+4. Update backlog config.yml with required workflow statuses:
+```
+statuses: ["To Do", "Intake", "Intake Review", "Plan", "Plan Review", "Code", "AI Code Review", "Human Code Review", "Done"]
+``` 
+
 ## Workflow
 
 When you want the agent to coordinate a task end-to-end, invoke the `workflow` skill. It runs the full 13-step lifecycle: claim work → intake → plan → implement → test → review → close out. See `CLAUDE.md` and `.claude/skills/workflow/SKILL.md` for details.
