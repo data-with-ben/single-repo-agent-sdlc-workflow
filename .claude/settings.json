@@ -1,0 +1,48 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Skill(manage-backlog-tasks)",
+      "Skill(workflow)",
+      "Skill(check-for-work)",
+      "Skill(unit-tests)",
+      "Skill(e2e-tests)",
+      "Skill(implementation-notes)",
+      "Skill(code-review)",
+      "Skill(commit)",
+      "Skill(audit-followed-workflow-steps)",
+      "Bash(backlog task:*)",
+      "Bash(git init:*)",
+      "Bash(git checkout:*)",
+      "Bash(pip install:*)",
+      "Bash(pytest:*)",
+      "Bash(python -c:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run build:*)",
+      "Bash(git merge:*)",
+      "Bash(git show-ref:*)",
+      "Bash(npx playwright:*)",
+      "Bash(dir:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "terraform@claude-plugins-official": true,
+    "deploy-on-aws@claude-plugins-official": true
+  }
+}
