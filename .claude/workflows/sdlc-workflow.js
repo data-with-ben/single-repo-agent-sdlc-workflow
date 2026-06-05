@@ -67,6 +67,42 @@ const WORKTREE_SCHEMA = {
   required: ['worktree', 'signal', 'blocked', 'detail'],
 }
 
+// Batched verify/test/notes — runs verify-ac → unit-tests → e2e-tests → implementation-notes in one agent turn
+const VERIFY_BATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    blocked: { type: 'boolean', description: 'true if any of verify-ac, unit-tests, or e2e-tests blocked (E2E_TESTS_SKIPPED is NOT a blocker)' },
+    firstBlockedStep: { type: 'string', description: 'Name of the first blocking skill ("verify-ac", "unit-tests", "e2e-tests"), or empty string if none blocked' },
+    detail: { type: 'string', description: 'Detail from the first blocking step. Empty string if none blocked.' },
+    signals: {
+      type: 'object',
+      description: 'Verbatim terminal signal from each skill that was executed',
+      properties: {
+        'verify-ac': { type: 'string' },
+        'unit-tests': { type: 'string' },
+        'e2e-tests': { type: 'string' },
+        'implementation-notes': { type: 'string' },
+      },
+      required: ['verify-ac'],
+    },
+  },
+  required: ['blocked', 'firstBlockedStep', 'detail', 'signals'],
+}
+
+// Batched self-improvement + merge-guard — runs both in one agent turn after audit passes
+const AUDIT_TAIL_SCHEMA = {
+  type: 'object',
+  properties: {
+    selfImpBlocked: { type: 'boolean' },
+    selfImpSignal: { type: 'string' },
+    selfImpDetail: { type: 'string' },
+    mergeGuardBlocked: { type: 'boolean', description: 'false if self-improvement blocked (merge-guard was skipped)' },
+    mergeGuardSignal: { type: 'string' },
+    mergeGuardDetail: { type: 'string' },
+  },
+  required: ['selfImpBlocked', 'selfImpSignal', 'selfImpDetail', 'mergeGuardBlocked', 'mergeGuardSignal', 'mergeGuardDetail'],
+}
+
 // ---------------- helpers ----------------
 function skillPrompt(skill, extra) {
   const skillFile = state.worktree
@@ -85,6 +121,27 @@ function skillPrompt(skill, extra) {
     `COMMIT DISCIPLINE: do NOT create git commits in this step — let changes accumulate in the worktree's working tree. Exception: only if this skill's own instructions explicitly commit (commit / closeout / gate exit paths).`,
     extra,
     `Your final message is consumed by an orchestrator, not a human. Return structured output capturing the skill's terminal signal line VERBATIM in "signal".`,
+  ].filter(Boolean).join('\n\n')
+}
+
+function batchPrompt(skills, extra) {
+  const root = state.worktree || '.'
+  const skillList = skills.map((s, i) =>
+    `${i + 1}. **${s}** — read and execute ${root}/.claude/skills/${s}/SKILL.md`
+  ).join('\n')
+  return [
+    `You are executing ${skills.length} sequential SDLC workflow skills in a single agent turn to avoid redundant context loading. Run each skill in the order listed below, stopping at the first blocking signal (a *_BLOCKED, *_FAILED, *_NEEDED, or *_REQUIRED terminal). Skip all remaining skills after a block. Exception: E2E_TESTS_SKIPPED is NOT a blocker — continue to the next skill.`,
+    state.worktree
+      ? `WORKING ROOT: ${state.worktree} (git worktree). cd there FIRST and run ALL commands from inside it. Run backlog CLI from ${state.worktree}/backlog.`
+      : `WORKING ROOT: main repo checkout.`,
+    state.id ? `Task: ${state.id} — ${state.title}` : null,
+    state.branch ? `Feature branch: ${state.branch}` : null,
+    `Skills to run in order:\n${skillList}`,
+    `AUTONOMY OVERRIDE: run fully autonomously. Never pause for confirmation.`,
+    `TASK RULE: never edit backlog task files directly — always use the backlog CLI.`,
+    `COMMIT DISCIPLINE: do NOT create git commits.`,
+    extra,
+    `Your final message is consumed by an orchestrator. Return structured output capturing each executed skill's terminal signal verbatim.`,
   ].filter(Boolean).join('\n\n')
 }
 
@@ -192,47 +249,45 @@ while (true) {
   await runSkill('implement', 'Implement', implementFeedback ? `RETURN-TO-IMPLEMENT PASS: address ONLY the following issues from a downstream step — do not expand scope:\n${implementFeedback}` : null)
   implementFeedback = ''
 
-  // Step 6: Verify AC
-  const ac = await runSkill('verify-ac', 'Verify & Test')
-  if (ac.blocked) {
-    if (acRetries >= 2) {
-      await commitExit('AC retry cap reached', 'Verify & Test')
-      return blocked(`AC not met after 2 retries — ${ac.detail}`)
+  // Steps 6–9: verify-ac → unit-tests → e2e-tests → implementation-notes (batched — one agent, one context load)
+  const vb = await agent(
+    batchPrompt(
+      ['verify-ac', 'unit-tests', 'e2e-tests', 'implementation-notes'],
+      'Run skills 1–3 in strict order, stopping at the first blocker. Only run implementation-notes (skill 4) if skills 1–3 all pass. E2E_TESTS_SKIPPED is NOT a blocker — continue to implementation-notes when you see it.',
+    ),
+    { label: 'verify+test+notes', phase: 'Verify & Test', schema: VERIFY_BATCH_SCHEMA },
+  ) || { blocked: true, firstBlockedStep: 'verify-ac', detail: 'agent skipped/cancelled', signals: { 'verify-ac': '' } }
+
+  if (vb.blocked) {
+    const step = vb.firstBlockedStep
+    const detail = vb.detail || ''
+    if (step === 'verify-ac') {
+      if (acRetries >= 2) {
+        await commitExit('AC retry cap reached', 'Verify & Test')
+        return blocked(`AC not met after 2 retries — ${detail}`)
+      }
+      acRetries++
+      implementFeedback = `AC verification failed (AC_VERIFICATION_FAILED). Failure details: ${detail}`
+      log(`AC verification failed — returning to implement (AC retry ${acRetries}/2)`)
+    } else if (step === 'unit-tests') {
+      if (unitRetries >= 2) {
+        await commitExit('unit test retry cap reached', 'Verify & Test')
+        return blocked(`unit tests failing after 2 retries — ${detail}`)
+      }
+      unitRetries++
+      implementFeedback = `Unit tests blocked (UNIT_TESTS_BLOCKED). Failure details: ${detail}`
+      log(`Unit tests failed — returning to implement (unit retry ${unitRetries}/2)`)
+    } else {
+      if (e2eRetries >= 2) {
+        await commitExit('e2e retry cap reached', 'Verify & Test')
+        return blocked(`e2e tests failing after 2 retries — ${detail}`)
+      }
+      e2eRetries++
+      implementFeedback = `E2E tests blocked (E2E_TESTS_BLOCKED). Failure details: ${detail}`
+      log(`E2E tests failed — returning to implement (e2e retry ${e2eRetries}/2)`)
     }
-    acRetries++
-    implementFeedback = `AC verification failed (AC_VERIFICATION_FAILED). Failure details: ${ac.detail}`
-    log(`AC verification failed — returning to implement (AC retry ${acRetries}/2)`)
     continue
   }
-
-  // Step 7: Create/update unit tests and run all unit tests
-  const unit = await runSkill('unit-tests', 'Verify & Test')
-  if (unit.blocked) {
-    if (unitRetries >= 2) {
-      await commitExit('unit test retry cap reached', 'Verify & Test')
-      return blocked('unit tests failing after 2 retries')
-    }
-    unitRetries++
-    implementFeedback = `Unit tests blocked (UNIT_TESTS_BLOCKED). Failure details: ${unit.detail}`
-    log(`Unit tests failed — returning to implement (unit retry ${unitRetries}/2)`)
-    continue
-  }
-
-  // Step 8: Run e2e tests (E2E_TESTS_SKIPPED is not a blocker)
-  const e2e = await runSkill('e2e-tests', 'Verify & Test', `Note: E2E_TESTS_SKIPPED is NOT a blocker — report blocked=false for it. Only E2E_TESTS_BLOCKED is blocking.`)
-  if (e2e.blocked) {
-    if (e2eRetries >= 2) {
-      await commitExit('e2e retry cap reached', 'Verify & Test')
-      return blocked('e2e tests failing after 2 retries')
-    }
-    e2eRetries++
-    implementFeedback = `E2E tests blocked (E2E_TESTS_BLOCKED). Failure details: ${e2e.detail}`
-    log(`E2E tests failed — returning to implement (e2e retry ${e2eRetries}/2)`)
-    continue
-  }
-
-  // Step 9: Write implementation notes to the task
-  await runSkill('implementation-notes', 'Verify & Test')
 
   // Step 10: AI code review
   const review = await runSkill('code-review', 'Code Review')
@@ -273,19 +328,21 @@ for (let auditRound = 0; ; auditRound++) {
 }
 
 // ============================================================
-// Step 11b: Self-improvement recommendation
+// Steps 11b + 12: self-improvement + merge-guard (batched — one agent, one context load)
 // ============================================================
-const selfImp = await runSkill('self-improvement', 'Audit')
-if (selfImp.blocked) {
-  // SELF_IMPROVEMENT_REVIEW_REQUIRED — a human must approve before closeout
-  return blocked(`${selfImp.signal} — human approval required before closeout. ${selfImp.detail}`)
-}
+const auditTail = await agent(
+  batchPrompt(
+    ['self-improvement', 'merge-guard'],
+    'Run self-improvement first. If it emits SELF_IMPROVEMENT_REVIEW_REQUIRED (blocked), skip merge-guard and report mergeGuardBlocked=false with an empty signal. Otherwise run merge-guard.',
+  ),
+  { label: 'self-improvement+merge-guard', phase: 'Audit', schema: AUDIT_TAIL_SCHEMA },
+) || { selfImpBlocked: true, selfImpSignal: 'WORKFLOW_BLOCKED: agent skipped', selfImpDetail: 'agent skipped/cancelled', mergeGuardBlocked: false, mergeGuardSignal: '', mergeGuardDetail: '' }
 
-// ============================================================
-// Step 12: Merge guard (scope check before marking Done)
-// ============================================================
-const guard = await runSkill('merge-guard', 'Audit')
-if (guard.blocked) return blocked(guard.signal || `merge guard — ${guard.detail}`)
+if (auditTail.selfImpBlocked) {
+  // SELF_IMPROVEMENT_REVIEW_REQUIRED — human must approve before closeout
+  return blocked(`${auditTail.selfImpSignal} — human approval required before closeout. ${auditTail.selfImpDetail}`)
+}
+if (auditTail.mergeGuardBlocked) return blocked(auditTail.mergeGuardSignal || `merge guard — ${auditTail.mergeGuardDetail}`)
 
 // ============================================================
 // Step 13: Closeout (single conventional commit, squash, push, mark Done, tear down worktree)
