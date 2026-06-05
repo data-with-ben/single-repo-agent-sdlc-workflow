@@ -1,3 +1,16 @@
-projects/*
+# Claude Code
 .claude/worktrees/*
 .claude/settings.local.json
+
+# Node
+node_modules/
+dist/
+
+# Python
+__pycache__/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Playwright (HTML report only; test-results/ is committed as evidence)
+e2e/playwright-report/
