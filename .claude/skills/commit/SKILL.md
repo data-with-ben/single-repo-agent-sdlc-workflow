@@ -5,7 +5,9 @@ description: Commit all changes with a well-formatted commit message following c
 
 Your job is to commit all pending changes with a clear, descriptive commit message.
 
-This is a mono-repo. All changes across `frontend/`, `backend/`, `e2e/`, and `backlog/` are committed from the workspace root as a single git commit.
+This is a mono-repo. All changes across `frontend/`, `backend/`, `e2e/`, and `backlog/` are committed as a single git commit.
+
+**Working root:** During an active workflow, commits are made from the worktree root (`<worktree>`), not the main repo checkout. The worktree is a complete checkout of the feature branch — running `git commit` there commits directly to the feature branch. If no worktree is active (e.g., a manual one-off commit outside the workflow), commit from the repo root as normal.
 
 ## Process
 

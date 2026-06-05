@@ -22,19 +22,25 @@ fi
 
 ## Process
 
-1. Review all changes on the current branch:
+1. Update the task status to signal the review is in progress:
+
+```bash
+cd backlog && backlog task edit <id> -s "AI Code Review" -a @agent
+```
+
+2. Review all changes on the current branch:
 
 ```bash
 git diff "$base"...HEAD
 ```
 
-2. Review the task details to understand the requirements:
+3. Review the task details to understand the requirements:
 
 ```bash
 cd backlog && backlog task <id> --plain
 ```
 
-3. Perform a comprehensive code review covering:
+4. Perform a comprehensive code review covering:
 
    **Code Quality:**
    - Code clarity and readability
@@ -61,12 +67,12 @@ cd backlog && backlog task <id> --plain
    - Are there any scope creep or unnecessary additions?
    - Are there any missing edge cases?
 
-4. Categorize findings:
+5. Categorize findings:
    - **Critical:** Must be fixed before merging (security, bugs, requirement gaps)
    - **Major:** Should be fixed (performance, maintainability issues)
    - **Minor:** Nice to have (style preferences, minor optimizations)
 
-5. If critical or major issues are found:
+6. If critical or major issues are found:
    - Document each issue with:
      - File path and line number
      - Description of the issue
@@ -81,7 +87,7 @@ cd backlog && backlog task <id> --plain
    ```
    - Output `CODE_REVIEW_BLOCKED: <number> critical/major issues found` and stop
 
-6. If only minor issues or no issues are found:
+7. If only minor issues or no issues are found:
    - Document any minor suggestions
    - Append review summary to the task:
    ```bash
