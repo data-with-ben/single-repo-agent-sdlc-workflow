@@ -32,7 +32,24 @@ git worktree add "$WORKTREE_PATH" <branch>
 git worktree list
 ```
 
-5. Emit completion:
+5. Bootstrap gitignored build artifacts so subsequent steps have working toolchains. Run all three installs from the worktree root:
+
+```bash
+# Node dependencies — frontend
+cd "$WORKTREE_PATH/frontend" && npm ci
+
+# Node dependencies — e2e
+cd "$WORKTREE_PATH/e2e" && npm ci
+
+# Python virtualenv + dependencies — backend
+cd "$WORKTREE_PATH/backend"
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]" --quiet
+```
+
+If any install fails, emit `WORKTREE_BLOCKED: bootstrap failed — <error summary>` and stop. Do not continue with a broken toolchain.
+
+6. Emit completion:
    - Emit `WORKTREE_READY: <absolute-path>` and continue to the next step in the workflow — do not stop.
 
 ## What the worktree contains
@@ -42,5 +59,5 @@ The worktree is a complete checkout of the feature branch at the moment of creat
 ## Rules
 
 - The `.claude/worktrees/` directory is already in `.gitignore` — no additional configuration needed
-- Create a worktree only once per branch; if one already exists at the expected path, emit `WORKTREE_READY: <path>` and continue
+- Create a worktree only once per branch; if one already exists at the expected path, skip steps 2–4 and go straight to step 5 (bootstrap is idempotent — re-running `npm ci` / `pip install` on an existing install is safe and fast)
 - Never create the worktree for a branch that is already checked out in the main repo (git will refuse this — they must be on different branches)
