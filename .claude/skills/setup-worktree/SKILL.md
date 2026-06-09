@@ -20,19 +20,30 @@ WORKTREE_PATH="$REPO_ROOT/.claude/worktrees/<branch>"
 mkdir -p "$REPO_ROOT/.claude/worktrees"
 ```
 
-3. Create the worktree for the feature branch:
+3. If the repo is currently on the feature branch, switch to `main` first — git refuses to create a worktree for a branch that is already checked out:
+
+```bash
+CURRENT="$(git branch --show-current)"
+if [ "$CURRENT" = "<branch>" ]; then
+  git checkout main
+fi
+```
+
+The intake skill commits the backlog task change before emitting `INTAKE_COMPLETE`, so this checkout is always clean (no uncommitted edits to carry over).
+
+4. Create the worktree for the feature branch:
 
 ```bash
 git worktree add "$WORKTREE_PATH" <branch>
 ```
 
-4. Verify the worktree was created successfully:
+5. Verify the worktree was created successfully:
 
 ```bash
 git worktree list
 ```
 
-5. Bootstrap gitignored build artifacts so subsequent steps have working toolchains. Run all three installs from the worktree root:
+6. Bootstrap gitignored build artifacts so subsequent steps have working toolchains. Run all three installs from the worktree root:
 
 ```bash
 # Node dependencies — frontend
@@ -49,7 +60,7 @@ python3 -m venv .venv
 
 If any install fails, emit `WORKTREE_BLOCKED: bootstrap failed — <error summary>` and stop. Do not continue with a broken toolchain.
 
-6. Emit completion:
+7. Emit completion:
    - Emit `WORKTREE_READY: <absolute-path>` and continue to the next step in the workflow — do not stop.
 
 ## What the worktree contains
@@ -59,5 +70,5 @@ The worktree is a complete checkout of the feature branch at the moment of creat
 ## Rules
 
 - The `.claude/worktrees/` directory is already in `.gitignore` — no additional configuration needed
-- Create a worktree only once per branch; if one already exists at the expected path, skip steps 2–4 and go straight to step 5 (bootstrap is idempotent — re-running `npm ci` / `pip install` on an existing install is safe and fast)
+- Create a worktree only once per branch; if one already exists at the expected path, skip steps 2–5 and go straight to step 6 (bootstrap is idempotent — re-running `npm ci` / `pip install` on an existing install is safe and fast)
 - Never create the worktree for a branch that is already checked out in the main repo (git will refuse this — they must be on different branches)

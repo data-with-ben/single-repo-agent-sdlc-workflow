@@ -27,7 +27,16 @@ git checkout -b <branch>
 cd backlog && backlog task edit <id> -s "Intake" -a @agent --ref "<branch>"
 ```
 
-4. Emit completion:
+4. Commit the backlog task change to the feature branch:
+
+```bash
+git add "backlog/backlog/tasks/<task-file>.md"
+git commit -m "chore(backlog): intake <id> — set status to Intake, assign @agent, set branch ref"
+```
+
+This commit must happen while still on the feature branch, before `setup-worktree` switches back to `main`. Without it, the uncommitted backlog edit carries into `main`'s working tree when `git checkout main` is run, requiring a manual copy step to move it into the worktree.
+
+5. Emit completion:
    - Emit `INTAKE_COMPLETE: <branch>` and continue to the next step in the workflow — do not stop.
 
 ## Rules
