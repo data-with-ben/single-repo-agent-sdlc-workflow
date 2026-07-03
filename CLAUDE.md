@@ -41,6 +41,9 @@ The `.claude/skills/` directory contains custom Claude Code skills that implemen
 - **commit** - Creates conventional commit messages
 - **manage-backlog-tasks** - Wraps all backlog CLI operations
 
+**Standalone Utility Skills** (run on request, not part of the `workflow` steps):
+- **declutter-backlog** - Flags stale/superseded backlog tasks for removal with a recorded reason and grace period, then sweeps reprieved-or-expired flags into an archive with a durable removal log. Run as `scan` (flag candidates, requires user confirmation) or `sweep` (archive expired flags).
+
 The workflow skill enforces a strict process (see `.claude/skills/workflow/SKILL.md`):
 1. Check for work → 2. Run intake (create branch) → 2b. Set up worktree → 3. Assess task definition → 3b. Optional human intake review → 4. Plan the task → 4a. AI hostile plan review → 4b. Optional human plan review → 5. Implement changes → 6. Verify acceptance criteria → 7. Unit tests → 8. E2E tests → 9. Write implementation notes → 10. AI code review → 10b. Optional human code review → 11. Audit all steps → 11b. Self-improvement recommendation → 12. Merge guard (scope check) → 13. Closeout (squash, push, mark done, tear down worktree)
 
