@@ -1,11 +1,11 @@
 ---
 id: TASK-15
 title: T0.1 Repo scaffold and tooling
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:24'
-updated_date: '2026-07-03 20:32'
+updated_date: '2026-07-03 22:08'
 labels:
   - foundation
 dependencies: []
