@@ -37,3 +37,46 @@ statuses: ["To Do", "Intake", "Intake Review", "Plan", "Plan Review", "Code", "A
 ## Workflow
 
 When you want the agent to coordinate a task end-to-end, invoke the `workflow` skill. It runs the full 13-step lifecycle: claim work → intake → plan → implement → test → review → close out. See `CLAUDE.md` and `.claude/skills/workflow/SKILL.md` for details.
+
+## Running the App
+
+**Frontend** (http://localhost:5173):
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+**Backend** (http://localhost:8000):
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # .venv\Scripts\activate on Windows
+pip install -e ".[dev]"
+uvicorn app.main:app --reload
+```
+
+## Running Tests and Lint
+
+**Frontend:**
+```bash
+cd frontend
+npm test
+npm run lint
+```
+
+**Backend:**
+```bash
+cd backend
+pytest
+ruff check .
+```
+
+**End-to-end** (requires both the frontend and backend running):
+```bash
+cd e2e
+npm ci
+npm test
+```
+
+CI runs the frontend and backend test and lint commands on every push and pull request (`.github/workflows/ci.yml`). E2E tests are not run in CI since they require both live servers.

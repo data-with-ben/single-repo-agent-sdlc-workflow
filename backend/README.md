@@ -21,3 +21,9 @@ uvicorn app.main:app --reload
 ```bash
 pytest
 ```
+
+## Lint
+
+```bash
+ruff check .
+```

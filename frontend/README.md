@@ -21,3 +21,9 @@ Serves at http://localhost:5173.
 ```bash
 npm test
 ```
+
+## Lint
+
+```bash
+npm run lint
+```

@@ -1,5 +1,9 @@
 function App() {
-  return <main />;
+  return (
+    <main>
+      <h1>Hello, Fantasy Timesheets</h1>
+    </main>
+  );
 }
 
 export default App;
