@@ -75,12 +75,14 @@ if [ -z "$base" ]; then
   fi
 fi
 
-# Read modified_files from the task.
+# Read modified_files from the task. The `--plain` renderer prints this as a
+# single "Modified files: a, b, c" line, not a YAML-style block.
 mapfile -t task_scope < <(
   cd backlog
   backlog task "$task_id" --plain |
-    awk '/^modified_files:/{flag=1;next} flag && /^[a-zA-Z]/{flag=0} flag' |
-    sed -n 's/^[[:space:]]*-[[:space:]]*//p'
+    sed -n 's/^Modified files: //p' |
+    tr ',' '\n' |
+    sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 )
 
 # Build a set of in-scope paths for quick lookup.
