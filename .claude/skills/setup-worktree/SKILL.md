@@ -43,7 +43,18 @@ git worktree add "$WORKTREE_PATH" <branch>
 git worktree list
 ```
 
-6. Bootstrap gitignored build artifacts so subsequent steps have working toolchains. Run all three installs from the worktree root:
+6. Before installing anything, confirm the required interpreters are actually present — don't discover this mid-install:
+
+```bash
+command -v node && command -v npm
+command -v python3 || command -v python
+```
+
+If an interpreter is missing entirely (not merely an outdated version, and not a dependency-install failure), this is normally a one-command fix, not a real task blocker. Tell the user what's missing and propose the install command for their platform (e.g. `winget install OpenJS.NodeJS.LTS` / `winget install Python.Python.3.12` on Windows, `apt install nodejs python3` on Debian/Ubuntu, `brew install node python3` on macOS), and ask for confirmation before running it — installing system-wide software is exactly the kind of action that needs a human nod first. Once installed, continue with bootstrap below.
+
+Only emit `WORKTREE_BLOCKED: missing interpreter — <name>` if the user declines the install or none of the standard package managers are available.
+
+Bootstrap gitignored build artifacts so subsequent steps have working toolchains. Run all three installs from the worktree root:
 
 ```bash
 # Node dependencies — frontend
@@ -58,7 +69,7 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]" --quiet
 ```
 
-If any install fails, emit `WORKTREE_BLOCKED: bootstrap failed — <error summary>` and stop. Do not continue with a broken toolchain.
+If any install fails for a reason other than a missing interpreter (e.g. a broken dependency, a registry error), emit `WORKTREE_BLOCKED: bootstrap failed — <error summary>` and stop. Do not continue with a broken toolchain.
 
 7. Emit completion:
    - Emit `WORKTREE_READY: <absolute-path>` and continue to the next step in the workflow — do not stop.
