@@ -4,10 +4,13 @@ title: T2.1 Objective engine module (pure)
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:26'
+updated_date: '2026-07-04 01:08'
 labels:
   - backend scoring
 dependencies:
   - TASK-19
+documentation:
+  - docs/doc-1 - Fantasy-Timesheets-—-Product-Technical-Spec.md
 priority: high
 ordinal: 22000
 ---

@@ -4,10 +4,13 @@ title: T5.3 1v1 portfolio brackets (optional)
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:29'
+updated_date: '2026-07-04 01:08'
 labels:
   - frontend market future
 dependencies:
   - TASK-31
+documentation:
+  - docs/doc-1 - Fantasy-Timesheets-—-Product-Technical-Spec.md
 priority: low
 ordinal: 34000
 ---

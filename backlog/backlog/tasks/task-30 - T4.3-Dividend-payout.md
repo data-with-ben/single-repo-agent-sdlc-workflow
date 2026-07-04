@@ -4,11 +4,14 @@ title: T4.3 Dividend payout
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:28'
+updated_date: '2026-07-04 01:08'
 labels:
   - backend market
 dependencies:
   - TASK-26
   - TASK-29
+documentation:
+  - docs/doc-1 - Fantasy-Timesheets-—-Product-Technical-Spec.md
 priority: medium
 ordinal: 30000
 ---
