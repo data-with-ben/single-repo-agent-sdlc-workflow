@@ -43,6 +43,16 @@ Use the `commit` skill once more for the Done status update, then push from `<wo
 git push
 ```
 
+### 4b. Archive the task into completed
+
+From `<worktree>`:
+
+```bash
+cd backlog && backlog task complete <id>
+```
+
+This moves the task out of `backlog/backlog/tasks/` into `backlog/backlog/completed/` and off the active Kanban board — the task's Done status alone does not do this. Commit and push this move with the `commit` skill, same as step 4.
+
 ### 5. Tear down the worktree
 
 Switch from the worktree to the main repo root, then remove the worktree:
