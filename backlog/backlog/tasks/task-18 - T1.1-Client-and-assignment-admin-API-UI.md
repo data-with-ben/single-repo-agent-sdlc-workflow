@@ -1,11 +1,11 @@
 ---
 id: TASK-18
 title: T1.1 Client and assignment admin (API + UI)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 03:12'
+updated_date: '2026-07-04 03:13'
 labels:
   - backend frontend
 dependencies:
