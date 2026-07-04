@@ -42,3 +42,19 @@ alembic revision --autogenerate -m "describe the change"
 ```
 
 See `docs/er-diagram.md` for the current entity-relationship diagram.
+
+## Seed data
+
+Populates clients, ~15 consultants with varied punctuality profiles, an
+active season with teams, and starting wallets -- enough to exercise
+every planned screen and the nightly reveal job during development.
+Run after migrations are applied:
+
+```bash
+alembic upgrade head
+python -m app.seed
+```
+
+Re-running is safe: `seed()` resets all seed-managed tables before
+inserting fresh data, using a fixed random seed so every run produces
+byte-identical results.
