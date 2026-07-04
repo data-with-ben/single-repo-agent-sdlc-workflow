@@ -1,11 +1,11 @@
 ---
 id: TASK-35
 title: Dev-mode current-user identity mechanism
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-04 02:35'
-updated_date: '2026-07-04 02:55'
+updated_date: '2026-07-04 02:56'
 labels:
   - backend
   - frontend
