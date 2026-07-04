@@ -1,11 +1,11 @@
 ---
 id: TASK-19
 title: T1.2 TimeEntry lifecycle (API)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 03:47'
+updated_date: '2026-07-04 03:48'
 labels:
   - backend
 dependencies:
