@@ -1,11 +1,11 @@
 ---
 id: TASK-20
 title: T1.3 Consultant weekly calendar and day entry (UI)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 23:06'
+updated_date: '2026-07-04 23:07'
 labels:
   - frontend
 dependencies:
