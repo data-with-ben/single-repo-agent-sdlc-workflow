@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
 from app.db import get_db
-from app.models import Assignment, Client, User
+from app.models import Assignment, Client, TimeEntry, User
+from app.timeentry import IllegalTransitionError
+from app.timeentry import eod_update as apply_eod_update
+from app.timeentry import log as apply_log
+from app.timeentry import project as apply_project
 
 app = FastAPI(title="Backend API")
 
@@ -17,6 +21,27 @@ class CreateClientRequest(BaseModel):
 
 class CreateAssignmentRequest(BaseModel):
     consultant_id: int
+
+
+class ProjectRequest(BaseModel):
+    client_id: int
+    work_date: date
+    planned_hours: float
+    consultant_id: int | None = None
+
+
+class LogRequest(BaseModel):
+    client_id: int
+    work_date: date
+    actual_hours: float
+    consultant_id: int | None = None
+
+
+class EodUpdateRequest(BaseModel):
+    client_id: int
+    work_date: date
+    description: str
+    consultant_id: int | None = None
 
 
 @app.get("/")
@@ -166,3 +191,127 @@ def list_my_clients(
     ]
     clients = db.query(Client).filter(Client.id.in_(client_ids)).all()
     return [{"id": c.id, "name": c.name, "status": c.status} for c in clients]
+
+
+def _resolve_target_consultant_id(
+    current_user: User, requested_consultant_id: int | None
+) -> int:
+    # No existing "admin-or-self" precedent to reuse (task-18 only has
+    # admin-only endpoints and a separate self-filtered /me/clients) --
+    # this is new authorization logic.
+    if requested_consultant_id is None or requested_consultant_id == current_user.id:
+        return current_user.id
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=403,
+            detail="Only an admin can submit a time entry on behalf of another user",
+        )
+    return requested_consultant_id
+
+
+def _require_assignment(db: Session, consultant_id: int, client_id: int) -> None:
+    assignment = (
+        db.query(Assignment)
+        .filter_by(consultant_id=consultant_id, client_id=client_id)
+        .first()
+    )
+    if assignment is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Consultant is not assigned to this client",
+        )
+
+
+def _find_or_create_entry(
+    db: Session, consultant_id: int, client_id: int, work_date: date
+) -> TimeEntry:
+    work_date_dt = datetime.combine(work_date, datetime.min.time())
+    entry = (
+        db.query(TimeEntry)
+        .filter_by(
+            consultant_id=consultant_id, client_id=client_id, work_date=work_date_dt
+        )
+        .first()
+    )
+    if entry is None:
+        entry = TimeEntry(
+            consultant_id=consultant_id,
+            client_id=client_id,
+            work_date=work_date_dt,
+            state="empty",
+        )
+        db.add(entry)
+        db.flush()
+    return entry
+
+
+def _serialize_entry(entry: TimeEntry) -> dict:
+    return {
+        "id": entry.id,
+        "consultant_id": entry.consultant_id,
+        "client_id": entry.client_id,
+        "work_date": entry.work_date.date().isoformat(),
+        "planned_hours": entry.planned_hours,
+        "actual_hours": entry.actual_hours,
+        "description": entry.description,
+        "projected_at": entry.projected_at.isoformat() if entry.projected_at else None,
+        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
+        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "first_submitted_at": (
+            entry.first_submitted_at.isoformat() if entry.first_submitted_at else None
+        ),
+        "state": entry.state,
+    }
+
+
+@app.post("/time-entries/project")
+def project_time_entry(
+    body: ProjectRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    consultant_id = _resolve_target_consultant_id(user, body.consultant_id)
+    _require_assignment(db, consultant_id, body.client_id)
+    entry = _find_or_create_entry(db, consultant_id, body.client_id, body.work_date)
+    try:
+        apply_project(
+            entry,
+            body.planned_hours,
+            body.client_id,
+            datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+    except IllegalTransitionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message) from exc
+    db.commit()
+    return _serialize_entry(entry)
+
+
+@app.post("/time-entries/log")
+def log_time_entry(
+    body: LogRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    consultant_id = _resolve_target_consultant_id(user, body.consultant_id)
+    _require_assignment(db, consultant_id, body.client_id)
+    entry = _find_or_create_entry(db, consultant_id, body.client_id, body.work_date)
+    apply_log(entry, body.actual_hours, datetime.now(timezone.utc).replace(tzinfo=None))
+    db.commit()
+    return _serialize_entry(entry)
+
+
+@app.post("/time-entries/eod-update")
+def eod_update_time_entry(
+    body: EodUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    consultant_id = _resolve_target_consultant_id(user, body.consultant_id)
+    _require_assignment(db, consultant_id, body.client_id)
+    entry = _find_or_create_entry(db, consultant_id, body.client_id, body.work_date)
+    apply_eod_update(
+        entry, body.description, datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+    db.commit()
+    return _serialize_entry(entry)
