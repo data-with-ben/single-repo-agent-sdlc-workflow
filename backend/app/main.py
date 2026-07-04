@@ -315,3 +315,24 @@ def eod_update_time_entry(
     )
     db.commit()
     return _serialize_entry(entry)
+
+
+@app.get("/me/time-entries")
+def list_my_time_entries(
+    start: date,
+    end: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.min.time())
+    entries = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.consultant_id == user.id,
+            TimeEntry.work_date >= start_dt,
+            TimeEntry.work_date <= end_dt,
+        )
+        .all()
+    )
+    return [_serialize_entry(e) for e in entries]
