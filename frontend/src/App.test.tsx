@@ -1,9 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import App from './App';
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      json: () => Promise.resolve([]),
+    }),
+  );
+});
+
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe('App', () => {
