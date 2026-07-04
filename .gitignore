@@ -11,6 +11,8 @@ __pycache__/
 .venv/
 *.egg-info/
 .pytest_cache/
+*.db
+*.db-journal
 
 # Playwright (HTML report only; test-results/ is committed as evidence)
 e2e/playwright-report/
