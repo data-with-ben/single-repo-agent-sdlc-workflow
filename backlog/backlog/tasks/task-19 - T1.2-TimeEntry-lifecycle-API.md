@@ -4,11 +4,12 @@ title: T1.2 TimeEntry lifecycle (API)
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 01:07'
+updated_date: '2026-07-04 02:38'
 labels:
   - backend
 dependencies:
   - TASK-18
+  - TASK-35
 documentation:
   - docs/doc-1 - Fantasy-Timesheets-—-Product-Technical-Spec.md
 priority: high

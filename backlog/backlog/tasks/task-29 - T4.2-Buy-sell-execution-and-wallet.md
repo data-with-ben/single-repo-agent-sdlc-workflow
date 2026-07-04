@@ -4,10 +4,12 @@ title: T4.2 Buy/sell execution and wallet
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:28'
+updated_date: '2026-07-04 02:38'
 labels:
   - backend market
 dependencies:
   - TASK-28
+  - TASK-35
 priority: medium
 ordinal: 29000
 ---

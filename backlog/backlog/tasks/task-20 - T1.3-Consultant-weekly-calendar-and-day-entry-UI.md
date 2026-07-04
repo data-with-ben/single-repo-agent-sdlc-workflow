@@ -4,10 +4,12 @@ title: T1.3 Consultant weekly calendar and day entry (UI)
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:25'
+updated_date: '2026-07-04 02:38'
 labels:
   - frontend
 dependencies:
   - TASK-19
+  - TASK-35
 priority: high
 ordinal: 20000
 ---

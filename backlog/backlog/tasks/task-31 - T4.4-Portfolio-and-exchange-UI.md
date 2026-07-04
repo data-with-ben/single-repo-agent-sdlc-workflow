@@ -4,10 +4,12 @@ title: T4.4 Portfolio and exchange (UI)
 status: To Do
 assignee: []
 created_date: '2026-07-03 15:28'
+updated_date: '2026-07-04 02:38'
 labels:
   - frontend market
 dependencies:
   - TASK-30
+  - TASK-35
 priority: medium
 ordinal: 31000
 ---

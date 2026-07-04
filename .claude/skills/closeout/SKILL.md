@@ -53,16 +53,6 @@ Use the `commit` skill once more for the Done status update, then push from `<wo
 git push
 ```
 
-### 4b. Archive the task into completed
-
-From `<worktree>`:
-
-```bash
-cd backlog && backlog task complete <id>
-```
-
-This moves the task out of `backlog/backlog/tasks/` into `backlog/backlog/completed/` and off the active Kanban board — the task's Done status alone does not do this. Commit and push this move with the `commit` skill, same as step 4.
-
 ### 5. Tear down the worktree
 
 Switch from the worktree to the main repo root, then remove the worktree:
@@ -85,3 +75,4 @@ Emit `TASK_COMPLETE: <id> — <title>`
 - The task must be marked Done before tearing down the worktree
 - Worktree teardown must run from the main repo, not from inside the worktree
 - If any step fails before teardown, emit `WORKFLOW_BLOCKED: closeout failed — <details>` and stop — do not tear down the worktree so in-progress work is preserved for debugging
+- Do not run `backlog task complete <id>` here. It moves the task out of `backlog/backlog/tasks/` into `completed/`, but the CLI then treats it as if it doesn't exist at all — it can no longer be viewed (`backlog task <id>`) or referenced as a dependency (`--dep <id>`) by any future task. Leave Done tasks in `tasks/`; archiving is a deliberate, separate action for tasks nothing will ever need to reference again, not an automatic step of every closeout.
