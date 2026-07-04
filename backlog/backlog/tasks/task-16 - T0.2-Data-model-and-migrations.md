@@ -1,11 +1,11 @@
 ---
 id: TASK-16
 title: T0.2 Data model and migrations
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 01:24'
+updated_date: '2026-07-04 01:26'
 labels:
   - foundation data
 dependencies:
