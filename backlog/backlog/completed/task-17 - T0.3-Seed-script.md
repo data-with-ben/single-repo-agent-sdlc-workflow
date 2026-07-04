@@ -1,11 +1,11 @@
 ---
 id: TASK-17
 title: T0.3 Seed script
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:25'
-updated_date: '2026-07-04 02:09'
+updated_date: '2026-07-04 02:10'
 labels:
   - foundation data
 dependencies:
