@@ -27,6 +27,16 @@ The script squashes multiple commits into one if needed, then pushes the feature
 
 If the script exits non-zero, emit `WORKFLOW_BLOCKED: closeout push failed — <details>` and stop.
 
+### 2b. Check CI status
+
+Local test runs can pass against a venv/node_modules that predates a regression a truly clean environment would catch (e.g., a package-discovery break that only surfaces on a fresh `pip install -e`). After pushing, confirm CI actually passed on the pushed commit rather than assuming local success is sufficient:
+
+```bash
+gh run list --branch <branch> --limit 1
+```
+
+Wait for it to complete (`gh run watch <run-id>` if still in progress) and check the conclusion. If CI fails, treat it the same as a local test failure: emit `WORKFLOW_BLOCKED: CI failed on <branch> — <run URL>` and stop — do not proceed to marking the task Done. If `gh` isn't authenticated or the repo has no CI configured, note that explicitly in the task and continue (this is not itself a blocker).
+
 ### 3. Mark the task done
 
 From `<worktree>`:
