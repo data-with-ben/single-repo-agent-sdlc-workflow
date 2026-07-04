@@ -12,6 +12,7 @@ Never update backlog tasks by editing markdown files directly. Always use the `b
   ```bash
   cd backlog
   ```
+- **Before editing any task, check whether it has an active worktree.** Run `git worktree list` and see if any entry's branch matches the task's `references`/branch. If one exists, run the edit from *that worktree's* `backlog/` directory, not the main checkout's — even when the edit is part of a larger batch that mostly touches un-branched tasks (e.g., linking a shared doc to many tasks at once). Editing the main checkout's copy of a task that has a diverged worktree silently clobbers whatever state (status, assignee, notes) only exists in the worktree's copy, since the two are independent working-tree files until merged.
 
 
 ## Backlog.md: Comprehensive Project Management Tool via CLI
