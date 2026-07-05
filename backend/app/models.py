@@ -188,3 +188,28 @@ class Wallet(Base):
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     balance = Column(Float, nullable=False, default=0)
+
+
+class Notification(Base):
+    """In-app nudge notification (SPEC.md Section 9/12, task-33).
+
+    No email/push delivery channel exists anywhere in this codebase, and
+    SPEC.md does not specify one -- a nudge is an in-app row a recipient
+    reads back, not an external send. message is always a fixed, static
+    template string (see app/notifications.py) -- never TimeEntry content
+    -- enforcing SPEC.md Section 12's privacy invariant by construction,
+    not by a runtime content filter.
+
+    recipient_id doubles as the consultant being nudged -- a nudge always
+    targets the consultant who receives it, so a separate consultant_id
+    column would only ever duplicate recipient_id's value.
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    read = Column(Boolean, nullable=False, default=False)

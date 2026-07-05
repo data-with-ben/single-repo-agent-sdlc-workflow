@@ -22,16 +22,24 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
+from app.game_scheduling import schedule_season_games
 from app.models import (
     Assignment,
     Client,
+    Dividend,
+    Game,
+    Holding,
+    ObjectiveResult,
     Season,
     Team,
     TeamMembership,
     TimeEntry,
+    Transaction,
     User,
     Wallet,
 )
+from app.reveal import reveal_game_date
+from app.trading import execute_buy
 
 SEED_RANDOM_SEED = 42
 
@@ -49,6 +57,11 @@ PUNCTUALITY_PROFILES = ["always-on-time", "chronic-late", "streaky"]
 
 # Tables to reset, children before parents (FK-safe order).
 SEED_MANAGED_MODELS = [
+    Transaction,
+    Holding,
+    Dividend,
+    ObjectiveResult,
+    Game,
     TimeEntry,
     TeamMembership,
     Team,
@@ -121,8 +134,17 @@ def seed() -> None:
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
+        # Computed up front (before any User rows are created) so staff can
+        # be backdated to before the season starts below -- task-32's new-
+        # hire IPO gate (trading.is_tradable) treats anyone created after
+        # the active season's start_date as a fresh mid-season hire, not
+        # yet tradable. This seed script models existing staff, not new
+        # hires, so they must predate the season they're already playing.
+        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
+        staff_since = work_days[0] - timedelta(days=1)
+
         clients = [
-            Client(name=name, status="active", created_at=now)
+            Client(name=name, status="active", created_at=staff_since)
             for name in ["Acme Corp", "Globex", "Initech"]
         ]
         session.add_all(clients)
@@ -132,7 +154,7 @@ def seed() -> None:
             display_name="Morgan Manager",
             email="morgan.manager@example.com",
             roles=["admin"],
-            created_at=now,
+            created_at=staff_since,
             status="active",
         )
         # A dual-role user, matching SPEC.md Section 2: a manager "may also
@@ -141,7 +163,7 @@ def seed() -> None:
             display_name="Riley Player-Manager",
             email="riley.playermanager@example.com",
             roles=["admin", "consultant"],
-            created_at=now,
+            created_at=staff_since,
             status="active",
         )
         session.add_all([manager, player_manager])
@@ -154,7 +176,7 @@ def seed() -> None:
                     display_name=f"Consultant {i + 1}",
                     email=f"consultant{i + 1}@example.com",
                     roles=["consultant"],
-                    created_at=now,
+                    created_at=staff_since,
                     status="active",
                 )
             )
@@ -168,14 +190,14 @@ def seed() -> None:
                     Assignment(
                         consultant_id=consultant.id,
                         client_id=client.id,
-                        start_date=now,
+                        start_date=staff_since,
                     )
                 )
         session.flush()
 
         season = Season(
             name="Season 1",
-            start_date=now,
+            start_date=work_days[0],
             end_date=now + timedelta(weeks=4),
             status="active",
             team_size=TEAM_SIZE_TARGET,
@@ -211,7 +233,6 @@ def seed() -> None:
 
         # Assign punctuality profiles round-robin so all three are
         # represented, then seed the last N workdays of TimeEntry rows.
-        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
         for idx, consultant in enumerate(consultants):
             profile = PUNCTUALITY_PROFILES[idx % len(PUNCTUALITY_PROFILES)]
             assignment = (
@@ -237,6 +258,22 @@ def seed() -> None:
                         state=state,
                     )
                 )
+        session.flush()
+
+        # Schedule the season's round-robin games (covering the seeded
+        # workdays through the rest of the season) and reveal the most
+        # recent seeded workday, so the scoreboard has real, visible data
+        # in the dev environment -- without this, task-27's UI would have
+        # nothing to render against a freshly seeded database.
+        schedule_season_games(session, season)
+        session.flush()
+        reveal_game_date(session, work_days[-1].date())
+
+        # Gives the player-manager a small, real portfolio (rather than an
+        # empty one) so task-31's Portfolio screen has real holdings, live
+        # quotes, and movement to render in a freshly seeded environment.
+        execute_buy(session, player_manager.id, consultants[1].id, shares=3, now=now)
+        execute_buy(session, player_manager.id, consultants[2].id, shares=2, now=now)
 
         session.commit()
     finally:
