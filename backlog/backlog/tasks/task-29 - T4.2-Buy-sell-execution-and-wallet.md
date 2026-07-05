@@ -1,7 +1,7 @@
 ---
 id: TASK-29
 title: T4.2 Buy/sell execution and wallet
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:28'
