@@ -66,10 +66,22 @@ def test_seed_produces_expected_data(seeded_db):
         season = session.query(models.Season).one()
         assert season.status == "active"
 
+        player_manager = (
+            session.query(models.User)
+            .filter(models.User.email == "riley.playermanager@example.com")
+            .one()
+        )
         for wallet in session.query(models.Wallet).all():
-            assert wallet.balance == seed_module.STARTING_BALANCE
+            if wallet.user_id == player_manager.id:
+                # Debited by the demo trades seeded below, giving the
+                # Portfolio screen (task-31) a real, non-empty holding to
+                # render in a freshly seeded environment.
+                assert wallet.balance < seed_module.STARTING_BALANCE
+            else:
+                assert wallet.balance == seed_module.STARTING_BALANCE
 
-        assert session.query(models.Holding).count() == 0
+        held = session.query(models.Holding).filter(models.Holding.shares > 0).count()
+        assert held == 2
     finally:
         session.close()
 
