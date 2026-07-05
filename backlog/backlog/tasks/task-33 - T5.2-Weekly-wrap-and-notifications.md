@@ -1,11 +1,11 @@
 ---
 id: TASK-33
 title: T5.2 Weekly wrap and notifications
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:29'
-updated_date: '2026-07-05 17:24'
+updated_date: '2026-07-05 17:26'
 labels:
   - backend frontend future
 dependencies:
