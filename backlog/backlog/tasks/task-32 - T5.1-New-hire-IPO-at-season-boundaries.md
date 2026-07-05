@@ -1,11 +1,11 @@
 ---
 id: TASK-32
 title: T5.1 New-hire IPO at season boundaries
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:28'
-updated_date: '2026-07-05 16:52'
+updated_date: '2026-07-05 16:53'
 labels:
   - backend market future
 dependencies:
