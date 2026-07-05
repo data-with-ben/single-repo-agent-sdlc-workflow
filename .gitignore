@@ -13,6 +13,7 @@ __pycache__/
 .pytest_cache/
 *.db
 *.db-journal
+.coverage
 
 # Playwright (HTML report only; test-results/ is committed as evidence)
 e2e/playwright-report/
