@@ -1,11 +1,11 @@
 ---
 id: TASK-25
 title: T3.2 Game scheduling
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:27'
-updated_date: '2026-07-05 03:35'
+updated_date: '2026-07-05 03:36'
 labels:
   - backend
 dependencies:
