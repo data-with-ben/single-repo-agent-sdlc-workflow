@@ -1,11 +1,11 @@
 ---
 id: TASK-26
 title: T3.3 Nightly reveal job (idempotent)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:27'
-updated_date: '2026-07-05 13:53'
+updated_date: '2026-07-05 13:54'
 labels:
   - backend
 dependencies:
