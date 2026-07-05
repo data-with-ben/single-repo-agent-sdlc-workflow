@@ -1,11 +1,11 @@
 ---
 id: TASK-1
 title: Add backend health endpoint and display backend status in the frontend
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-06-05 14:11'
-updated_date: '2026-07-05 01:48'
+updated_date: '2026-07-05 01:50'
 labels:
   - backend
   - frontend
