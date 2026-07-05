@@ -1,11 +1,11 @@
 ---
 id: TASK-31
 title: T4.4 Portfolio and exchange (UI)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:28'
-updated_date: '2026-07-05 16:32'
+updated_date: '2026-07-05 16:35'
 labels:
   - frontend market
 dependencies:
