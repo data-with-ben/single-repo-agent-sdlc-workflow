@@ -1,11 +1,11 @@
 ---
 id: TASK-23
 title: T2.2 Team scoring and game resolution
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:26'
-updated_date: '2026-07-05 02:54'
+updated_date: '2026-07-05 02:56'
 labels:
   - backend scoring
 dependencies:
