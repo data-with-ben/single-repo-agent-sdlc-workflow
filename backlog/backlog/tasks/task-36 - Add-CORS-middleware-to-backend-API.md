@@ -1,9 +1,10 @@
 ---
 id: TASK-36
 title: Add CORS middleware to backend API
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-05 00:30'
+updated_date: '2026-07-05 01:42'
 labels:
   - backend infra
 dependencies: []
@@ -25,3 +26,9 @@ The FastAPI backend has no CORS middleware configured anywhere, confirmed direct
 - [ ] #2 A real browser running the frontend dev server can successfully call the backend on its own port without a CORS error in the console
 - [ ] #3 e2e/tests/weekly-calendar.spec.ts passes when run via npm run test:e2e
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Resolved by task-1: CORSMiddleware was registered app-wide in backend/app/main.py (feature/task-1-health-endpoint-status), not scoped to a single route. Verified directly via OPTIONS preflight against both /health and the authenticated /me/time-entries endpoint -- both return 200 with correct Access-Control-Allow-Origin/Headers. Closing as resolved rather than duplicating the work; see task-1 for details.
+<!-- SECTION:NOTES:END -->
