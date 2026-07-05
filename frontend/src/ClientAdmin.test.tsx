@@ -37,6 +37,7 @@ describe('ClientAdmin', () => {
       vi.fn((url: string) => {
         const path = url.replace('http://localhost:8000', '');
         return Promise.resolve({
+          ok: true,
           json: () => mockFetchFor(path),
         });
       }),
@@ -87,5 +88,28 @@ describe('ClientAdmin', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Assign consultant')).not.toBeNull();
     });
+  });
+
+  it('does not crash when /clients returns a non-ok response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const path = url.replace('http://localhost:8000', '');
+        if (path === '/clients') {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ detail: 'Missing X-User-Id header' }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => mockFetchFor(path) });
+      }),
+    );
+
+    const { container } = renderAsUser(2);
+
+    await waitFor(() => {
+      expect(screen.getByText('Clients and assignments')).not.toBeNull();
+    });
+    expect(container.querySelector('ul')?.children.length ?? 0).toBe(0);
   });
 });
