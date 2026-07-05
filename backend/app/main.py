@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,18 @@ from app.timeentry import log as apply_log
 from app.timeentry import project as apply_project
 
 app = FastAPI(title="Backend API")
+
+# Frontend dev server runs on a different origin (Vite defaults to 5173); the
+# request would otherwise be blocked by the browser before reaching any route
+# below. Fixed to the project's default Vite port -- if that port is ever
+# occupied and Vite auto-increments, this list needs updating too.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class CreateClientRequest(BaseModel):
@@ -254,11 +267,15 @@ def _serialize_entry(entry: TimeEntry) -> dict:
         "planned_hours": entry.planned_hours,
         "actual_hours": entry.actual_hours,
         "description": entry.description,
-        "projected_at": entry.projected_at.isoformat() if entry.projected_at else None,
-        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "projected_at": (
+            entry.projected_at.isoformat() + "Z" if entry.projected_at else None
+        ),
+        "logged_at": entry.logged_at.isoformat() + "Z" if entry.logged_at else None,
+        "updated_at": entry.updated_at.isoformat() + "Z" if entry.updated_at else None,
         "first_submitted_at": (
-            entry.first_submitted_at.isoformat() if entry.first_submitted_at else None
+            entry.first_submitted_at.isoformat() + "Z"
+            if entry.first_submitted_at
+            else None
         ),
         "state": entry.state,
     }
@@ -315,3 +332,24 @@ def eod_update_time_entry(
     )
     db.commit()
     return _serialize_entry(entry)
+
+
+@app.get("/me/time-entries")
+def list_my_time_entries(
+    start: date,
+    end: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.min.time())
+    entries = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.consultant_id == user.id,
+            TimeEntry.work_date >= start_dt,
+            TimeEntry.work_date <= end_dt,
+        )
+        .all()
+    )
+    return [_serialize_entry(e) for e in entries]
