@@ -114,7 +114,7 @@ while IFS= read -r f; do
     continue
   fi
   out_of_scope+=("$f")
-done < <(git diff "$base"..HEAD --name-only)
+done < <(git diff "$base"...HEAD --name-only)
 
 if [ "${#out_of_scope[@]}" -gt 0 ]; then
   printf 'WORKFLOW_BLOCKED: scope creep detected — files outside task scope:\n'
