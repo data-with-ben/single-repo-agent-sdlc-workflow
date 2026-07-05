@@ -34,7 +34,7 @@ function ClientAdmin() {
 
   const loadClients = useCallback(() => {
     apiFetch('/clients')
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : []))
       .then(setClients);
   }, []);
 
