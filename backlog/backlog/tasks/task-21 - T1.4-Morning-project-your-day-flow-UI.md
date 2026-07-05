@@ -1,11 +1,11 @@
 ---
 id: TASK-21
 title: T1.4 Morning project-your-day flow (UI)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:26'
-updated_date: '2026-07-05 02:20'
+updated_date: '2026-07-05 02:21'
 labels:
   - frontend
 dependencies:
