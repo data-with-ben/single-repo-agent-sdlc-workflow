@@ -1,11 +1,11 @@
 ---
 id: TASK-37
 title: Verify WeeklyCalendar perfect-day check after timestamp UTC-marker fix
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-05 02:22'
-updated_date: '2026-07-05 03:25'
+updated_date: '2026-07-05 03:27'
 labels:
   - backend frontend bug
 dependencies: []
