@@ -1,7 +1,7 @@
 ---
 id: TASK-30
 title: T4.3 Dividend payout
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:28'
