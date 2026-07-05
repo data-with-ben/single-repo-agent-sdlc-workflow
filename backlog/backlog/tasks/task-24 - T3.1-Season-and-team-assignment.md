@@ -1,11 +1,11 @@
 ---
 id: TASK-24
 title: T3.1 Season and team assignment
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:26'
-updated_date: '2026-07-05 03:09'
+updated_date: '2026-07-05 03:13'
 labels:
   - backend
 dependencies:
