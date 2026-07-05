@@ -1,11 +1,11 @@
 ---
 id: TASK-28
 title: T4.1 Pricing module (pure)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:27'
-updated_date: '2026-07-05 03:44'
+updated_date: '2026-07-05 03:45'
 labels:
   - backend market
 dependencies:
