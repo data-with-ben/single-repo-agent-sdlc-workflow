@@ -22,16 +22,24 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
+from app.game_scheduling import schedule_season_games
 from app.models import (
     Assignment,
     Client,
+    Dividend,
+    Game,
+    Holding,
+    ObjectiveResult,
     Season,
     Team,
     TeamMembership,
     TimeEntry,
+    Transaction,
     User,
     Wallet,
 )
+from app.reveal import reveal_game_date
+from app.trading import execute_buy
 
 SEED_RANDOM_SEED = 42
 
@@ -49,6 +57,11 @@ PUNCTUALITY_PROFILES = ["always-on-time", "chronic-late", "streaky"]
 
 # Tables to reset, children before parents (FK-safe order).
 SEED_MANAGED_MODELS = [
+    Transaction,
+    Holding,
+    Dividend,
+    ObjectiveResult,
+    Game,
     TimeEntry,
     TeamMembership,
     Team,
@@ -173,9 +186,15 @@ def seed() -> None:
                 )
         session.flush()
 
+        # Computed before the season so its start_date can cover the past
+        # workdays TimeEntry rows are seeded for below -- schedule_season_games
+        # only generates games from start_date forward, and reveal_game_date
+        # needs an actual Game on one of those days to reveal.
+        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
+
         season = Season(
             name="Season 1",
-            start_date=now,
+            start_date=work_days[0],
             end_date=now + timedelta(weeks=4),
             status="active",
             team_size=TEAM_SIZE_TARGET,
@@ -211,7 +230,6 @@ def seed() -> None:
 
         # Assign punctuality profiles round-robin so all three are
         # represented, then seed the last N workdays of TimeEntry rows.
-        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
         for idx, consultant in enumerate(consultants):
             profile = PUNCTUALITY_PROFILES[idx % len(PUNCTUALITY_PROFILES)]
             assignment = (
@@ -237,6 +255,22 @@ def seed() -> None:
                         state=state,
                     )
                 )
+        session.flush()
+
+        # Schedule the season's round-robin games (covering the seeded
+        # workdays through the rest of the season) and reveal the most
+        # recent seeded workday, so the scoreboard has real, visible data
+        # in the dev environment -- without this, task-27's UI would have
+        # nothing to render against a freshly seeded database.
+        schedule_season_games(session, season)
+        session.flush()
+        reveal_game_date(session, work_days[-1].date())
+
+        # Gives the player-manager a small, real portfolio (rather than an
+        # empty one) so task-31's Portfolio screen has real holdings, live
+        # quotes, and movement to render in a freshly seeded environment.
+        execute_buy(session, player_manager.id, consultants[1].id, shares=3, now=now)
+        execute_buy(session, player_manager.id, consultants[2].id, shares=2, now=now)
 
         session.commit()
     finally:
