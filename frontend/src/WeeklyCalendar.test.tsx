@@ -30,6 +30,7 @@ const yesterday = monday; // FIXED_NOW is a Tuesday, so Monday is "yesterday"
 
 let mockEntries: unknown[] = [];
 let postCalls: { path: string; body: unknown }[] = [];
+let unauthenticated = false;
 
 function mockFetchFor(path: string) {
   if (path === '/me/clients') return Promise.resolve(CLIENTS);
@@ -48,6 +49,7 @@ describe('WeeklyCalendar', () => {
     vi.setSystemTime(FIXED_NOW);
     mockEntries = [];
     postCalls = [];
+    unauthenticated = false;
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string, init?: RequestInit) => {
@@ -57,7 +59,14 @@ describe('WeeklyCalendar', () => {
           const body = init?.body ? JSON.parse(init.body as string) : undefined;
           postCalls.push({ path, body });
         }
+        if (unauthenticated && method === 'GET') {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ detail: 'Not authenticated' }),
+          });
+        }
         return Promise.resolve({
+          ok: true,
           json: () => mockFetchFor(path),
         });
       }),
@@ -213,6 +222,17 @@ describe('WeeklyCalendar', () => {
     await waitFor(() => {
       expect(screen.getByText(/Submitting now: 20 pts \(perfect day\)/)).not.toBeNull();
     });
+  });
+
+  it('renders an empty week strip instead of crashing when unauthenticated', async () => {
+    unauthenticated = true;
+    renderCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(new RegExp(`${todayStr} \\(today\\)`))).not.toBeNull();
+    });
+    const todayTile = screen.getByLabelText(new RegExp(`${todayStr} \\(today\\)`));
+    expect(todayTile.textContent).toContain('Not yet');
   });
 
   it('does not show a live points hint when a past day is selected', async () => {

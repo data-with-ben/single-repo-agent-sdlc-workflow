@@ -158,13 +158,13 @@ function WeeklyCalendar() {
     const start = days[0];
     const end = days[days.length - 1];
     apiFetch(`/me/time-entries?start=${start}&end=${end}`)
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : []))
       .then(setEntries);
   }, [days]);
 
   useEffect(() => {
     apiFetch('/me/clients')
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : []))
       .then((data: ApiClient[]) => {
         setClients(data);
         setSelectedClientId((current) => current ?? data[0]?.id ?? null);
