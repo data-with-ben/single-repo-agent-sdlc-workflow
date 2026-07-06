@@ -273,11 +273,15 @@ def _serialize_entry(entry: TimeEntry) -> dict:
         "planned_hours": entry.planned_hours,
         "actual_hours": entry.actual_hours,
         "description": entry.description,
-        "projected_at": entry.projected_at.isoformat() if entry.projected_at else None,
-        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "projected_at": (
+            entry.projected_at.isoformat() + "Z" if entry.projected_at else None
+        ),
+        "logged_at": entry.logged_at.isoformat() + "Z" if entry.logged_at else None,
+        "updated_at": entry.updated_at.isoformat() + "Z" if entry.updated_at else None,
         "first_submitted_at": (
-            entry.first_submitted_at.isoformat() if entry.first_submitted_at else None
+            entry.first_submitted_at.isoformat() + "Z"
+            if entry.first_submitted_at
+            else None
         ),
         "state": entry.state,
     }
@@ -510,3 +514,24 @@ def trade_sell(
         "price_per_share": txn.price_per_share,
         "total": txn.total,
     }
+
+
+@app.get("/me/time-entries")
+def list_my_time_entries(
+    start: date,
+    end: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.min.time())
+    entries = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.consultant_id == user.id,
+            TimeEntry.work_date >= start_dt,
+            TimeEntry.work_date <= end_dt,
+        )
+        .all()
+    )
+    return [_serialize_entry(e) for e in entries]

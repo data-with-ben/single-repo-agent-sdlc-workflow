@@ -44,7 +44,7 @@ def _make_user(db_session, roles=None) -> User:
         display_name=f"User {next(_email_counter)}",
         email=f"user{next(_email_counter)}@example.com",
         roles=roles or ["consultant"],
-        created_at=datetime(2020, 1, 1),
+        created_at=NOW,
         status="active",
     )
     db_session.add(user)
