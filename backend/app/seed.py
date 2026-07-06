@@ -195,6 +195,12 @@ def seed() -> None:
                 )
         session.flush()
 
+        # Computed before the season so its start_date can cover the past
+        # workdays TimeEntry rows are seeded for below -- schedule_season_games
+        # only generates games from start_date forward, and reveal_game_date
+        # needs an actual Game on one of those days to reveal.
+        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
+
         season = Season(
             name="Season 1",
             start_date=work_days[0],

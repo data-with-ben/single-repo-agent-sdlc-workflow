@@ -1,8 +1,10 @@
 import { CurrentUserProvider } from './currentUser';
 import UserSwitcher from './UserSwitcher';
 import ClientAdmin from './ClientAdmin';
-import BackendStatus from './BackendStatus';
 import Scoreboard from './Scoreboard';
+import MorningProjection from './MorningProjection';
+import WeeklyCalendar from './WeeklyCalendar';
+import BackendStatus from './BackendStatus';
 import Portfolio from './Portfolio';
 import Brackets from './Brackets';
 
@@ -16,7 +18,9 @@ function App() {
         <Scoreboard />
         <Portfolio />
         <Brackets />
+        <MorningProjection />
         <ClientAdmin />
+        <WeeklyCalendar />
       </main>
     </CurrentUserProvider>
   );
