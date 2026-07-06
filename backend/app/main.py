@@ -28,6 +28,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 class CreateClientRequest(BaseModel):
     name: str
 
