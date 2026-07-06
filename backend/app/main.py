@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +6,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
+from app.box_score import box_score_for_game, game_summary
 from app.db import get_db
-from app.models import Assignment, Client, TimeEntry, User
+from app.models import Assignment, Client, Game, ObjectiveResult, Team, TimeEntry, User
 from app.timeentry import IllegalTransitionError
 from app.timeentry import eod_update as apply_eod_update
 from app.timeentry import log as apply_log
@@ -15,6 +16,7 @@ from app.timeentry import project as apply_project
 
 app = FastAPI(title="Backend API")
 
+# Vite's dev server runs on :5173 by default; if that port is already
 # Frontend dev server runs on a different origin (Vite defaults to 5173); the
 # request would otherwise be blocked by the browser before reaching any route
 # below. Fixed to the project's default Vite port -- if that port is ever
@@ -339,6 +341,99 @@ def eod_update_time_entry(
     return _serialize_entry(entry)
 
 
+def _team_names_for(db: Session, team_ids: set[int]) -> dict[int, str]:
+    teams = db.query(Team).filter(Team.id.in_(team_ids)).all()
+    return {t.id: t.name for t in teams}
+
+
+@app.get("/games")
+def list_games(
+    work_date: date | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    # Matches wireframe 4 (games-view.png): "today's" slate is shown
+    # alongside the most recently revealed game (labeled "Final ·
+    # yesterday" there), not just an exact single-date match -- a
+    # single-date filter would show nothing on a weekend/off day with no
+    # scheduled games of its own, hiding the last real result. A 5-day
+    # trailing window reliably reaches back to the last workday regardless
+    # of where in the week "today" falls.
+    target_date = work_date or datetime.now(timezone.utc).date()
+    end = datetime(target_date.year, target_date.month, target_date.day) + timedelta(
+        days=1
+    )
+    start = end - timedelta(days=5)
+
+    games = (
+        db.query(Game).filter(Game.game_date >= start, Game.game_date < end).all()
+    )
+    team_names = _team_names_for(
+        db, {g.home_team_id for g in games} | {g.away_team_id for g in games}
+    )
+    is_admin = "admin" in user.roles
+
+    return [
+        game_summary(
+            game, team_names[game.home_team_id], team_names[game.away_team_id], is_admin
+        )
+        for game in games
+    ]
+
+
+def _get_game_or_404(db: Session, game_id: int) -> Game:
+    game = db.get(Game, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
+
+
+@app.get("/games/{game_id}/box-score")
+def get_box_score(
+    game_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    game = _get_game_or_404(db, game_id)
+    is_admin = "admin" in user.roles
+    if not game.revealed and not is_admin:
+        raise HTTPException(status_code=403, detail="Scores are hidden until reveal")
+
+    objective_results = (
+        db.query(ObjectiveResult).filter(ObjectiveResult.game_id == game_id).all()
+    )
+    team_names = _team_names_for(db, {game.home_team_id, game.away_team_id})
+    consultant_ids = {r.consultant_id for r in objective_results}
+    display_names = {
+        u.id: u.display_name
+        for u in db.query(User).filter(User.id.in_(consultant_ids)).all()
+    }
+
+    box = box_score_for_game(
+        game,
+        objective_results,
+        team_names[game.home_team_id],
+        team_names[game.away_team_id],
+        display_names,
+    )
+    return {
+        "game_id": box.game_id,
+        "home": {
+            "team_id": box.home.team_id,
+            "team_name": box.home.team_name,
+            "normalized_score": box.home.normalized_score,
+            "team_bonus_applied": box.home.team_bonus_applied,
+            "players": [vars(p) for p in box.home.players],
+        },
+        "away": {
+            "team_id": box.away.team_id,
+            "team_name": box.away.team_name,
+            "normalized_score": box.away.normalized_score,
+            "team_bonus_applied": box.away.team_bonus_applied,
+            "players": [vars(p) for p in box.away.players],
+        },
+        "star_of_game_consultant_id": box.star_of_game_consultant_id,
+    }
 @app.get("/me/time-entries")
 def list_my_time_entries(
     start: date,
