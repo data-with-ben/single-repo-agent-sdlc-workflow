@@ -28,15 +28,18 @@ from app.models import (
     Client,
     Dividend,
     Game,
+    Holding,
     ObjectiveResult,
     Season,
     Team,
     TeamMembership,
     TimeEntry,
+    Transaction,
     User,
     Wallet,
 )
 from app.reveal import reveal_game_date
+from app.trading import execute_buy
 
 SEED_RANDOM_SEED = 42
 
@@ -54,6 +57,8 @@ PUNCTUALITY_PROFILES = ["always-on-time", "chronic-late", "streaky"]
 
 # Tables to reset, children before parents (FK-safe order).
 SEED_MANAGED_MODELS = [
+    Transaction,
+    Holding,
     Dividend,
     ObjectiveResult,
     Game,
@@ -260,6 +265,12 @@ def seed() -> None:
         schedule_season_games(session, season)
         session.flush()
         reveal_game_date(session, work_days[-1].date())
+
+        # Gives the player-manager a small, real portfolio (rather than an
+        # empty one) so task-31's Portfolio screen has real holdings, live
+        # quotes, and movement to render in a freshly seeded environment.
+        execute_buy(session, player_manager.id, consultants[1].id, shares=3, now=now)
+        execute_buy(session, player_manager.id, consultants[2].id, shares=2, now=now)
 
         session.commit()
     finally:

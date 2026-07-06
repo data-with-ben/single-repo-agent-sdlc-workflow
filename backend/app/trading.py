@@ -93,7 +93,9 @@ def _current_demand_pressure(db: Session, consultant_id: int, as_of: datetime) -
     return decay_demand_pressure(pressure, days_elapsed)
 
 
-def _quote(db: Session, consultant_id: int, as_of: datetime) -> PriceQuote:
+def quote_for_consultant(
+    db: Session, consultant_id: int, as_of: datetime
+) -> PriceQuote:
     rolling_avg_score = _rolling_avg_score(db, consultant_id, as_of)
     demand_pressure = _current_demand_pressure(db, consultant_id, as_of)
     return price_quote(rolling_avg_score, demand_pressure)
@@ -127,7 +129,7 @@ def execute_buy(
     if shares <= 0:
         raise ValueError("shares must be positive")
 
-    quote = _quote(db, consultant_id, now)
+    quote = quote_for_consultant(db, consultant_id, now)
     total_cost = shares * quote.buy_price
 
     wallet = _get_or_create_wallet(db, user_id)
@@ -167,7 +169,7 @@ def execute_sell(
     if holding.shares < shares:
         raise ValueError("cannot sell more shares than are held")
 
-    quote = _quote(db, consultant_id, now)
+    quote = quote_for_consultant(db, consultant_id, now)
     total_proceeds = shares * quote.sell_price
 
     wallet = _get_or_create_wallet(db, user_id)

@@ -9,14 +9,15 @@ from app.auth import get_current_user, require_role
 from app.box_score import box_score_for_game, game_summary
 from app.db import get_db
 from app.models import Assignment, Client, Game, ObjectiveResult, Team, TimeEntry, User
+from app.portfolio import exchange_listing, portfolio_summary
 from app.timeentry import IllegalTransitionError
 from app.timeentry import eod_update as apply_eod_update
 from app.timeentry import log as apply_log
 from app.timeentry import project as apply_project
+from app.trading import execute_buy, execute_sell
 
 app = FastAPI(title="Backend API")
 
-# Vite's dev server runs on :5173 by default; if that port is already
 # Frontend dev server runs on a different origin (Vite defaults to 5173); the
 # request would otherwise be blocked by the browser before reaching any route
 # below. Fixed to the project's default Vite port -- if that port is ever
@@ -434,6 +435,88 @@ def get_box_score(
         },
         "star_of_game_consultant_id": box.star_of_game_consultant_id,
     }
+
+class TradeRequest(BaseModel):
+    consultant_id: int
+    shares: int
+
+
+@app.get("/exchange")
+def list_exchange(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    return [vars(listing) for listing in exchange_listing(db, now)]
+
+
+@app.get("/me/portfolio")
+def get_my_portfolio(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    summary = portfolio_summary(db, user.id, now)
+    return {
+        "wallet_balance": summary["wallet_balance"],
+        "holdings": [vars(h) for h in summary["holdings"]],
+        "dividends": [
+            {
+                "consultant_id": d.consultant_id,
+                "game_date": d.game_date.date().isoformat(),
+                "reason": d.reason,
+                "shares": d.shares,
+                "per_share": d.per_share,
+                "total": d.total,
+            }
+            for d in summary["dividends"]
+        ],
+        "market_movers": [vars(m) for m in summary["market_movers"]],
+    }
+
+
+@app.post("/trade/buy")
+def trade_buy(
+    body: TradeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        txn = execute_buy(db, user.id, body.consultant_id, body.shares, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {
+        "id": txn.id,
+        "side": txn.side,
+        "shares": txn.shares,
+        "price_per_share": txn.price_per_share,
+        "total": txn.total,
+    }
+
+
+@app.post("/trade/sell")
+def trade_sell(
+    body: TradeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        txn = execute_sell(db, user.id, body.consultant_id, body.shares, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {
+        "id": txn.id,
+        "side": txn.side,
+        "shares": txn.shares,
+        "price_per_share": txn.price_per_share,
+        "total": txn.total,
+    }
+
+
 @app.get("/me/time-entries")
 def list_my_time_entries(
     start: date,
