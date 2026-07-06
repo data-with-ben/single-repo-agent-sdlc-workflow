@@ -22,6 +22,12 @@ def test_read_root_returns_hello_world():
     assert response.json() == {"message": "hello world"}
 
 
+def test_health_returns_ok():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 @pytest.fixture()
 def users_client(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'users_test.db'}")

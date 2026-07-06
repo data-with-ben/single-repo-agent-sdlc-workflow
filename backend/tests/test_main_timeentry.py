@@ -200,3 +200,55 @@ def test_multiple_entries_per_consultant_and_workdate_across_clients(db_and_clie
     entry_b_id = response_b.json()["id"]
 
     assert entry_a_id != entry_b_id
+
+
+def test_list_my_time_entries_returns_entries_in_range(db_and_client):
+    client, _, consultant, _, acme, _ = db_and_client
+
+    client.post(
+        "/time-entries/log",
+        json={"client_id": acme.id, "work_date": "2026-07-06", "actual_hours": 8},
+        headers={"X-User-Id": str(consultant.id)},
+    )
+    client.post(
+        "/time-entries/log",
+        json={"client_id": acme.id, "work_date": "2026-07-20", "actual_hours": 5},
+        headers={"X-User-Id": str(consultant.id)},
+    )
+
+    response = client.get(
+        "/me/time-entries?start=2026-07-06&end=2026-07-10",
+        headers={"X-User-Id": str(consultant.id)},
+    )
+    assert response.status_code == 200
+    dates = [entry["work_date"] for entry in response.json()]
+    assert dates == ["2026-07-06"]
+
+
+def test_list_my_time_entries_only_returns_the_caller_own_entries(db_and_client):
+    client, admin, consultant, other_consultant, acme, _ = db_and_client
+
+    client.post(
+        "/time-entries/log",
+        json={
+            "client_id": acme.id,
+            "work_date": "2026-07-06",
+            "actual_hours": 8,
+            "consultant_id": consultant.id,
+        },
+        headers={"X-User-Id": str(admin.id)},
+    )
+
+    response = client.get(
+        "/me/time-entries?start=2026-07-06&end=2026-07-06",
+        headers={"X-User-Id": str(other_consultant.id)},
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_my_time_entries_requires_auth(db_and_client):
+    client, *_ = db_and_client
+
+    response = client.get("/me/time-entries?start=2026-07-06&end=2026-07-10")
+    assert response.status_code == 401
