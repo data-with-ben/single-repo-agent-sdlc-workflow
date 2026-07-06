@@ -1,11 +1,11 @@
 ---
 id: TASK-34
 title: T5.3 1v1 portfolio brackets (optional)
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-03 15:29'
-updated_date: '2026-07-05 21:13'
+updated_date: '2026-07-06 01:59'
 labels:
   - frontend market future
 dependencies:
