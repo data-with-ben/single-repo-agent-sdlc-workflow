@@ -1,8 +1,10 @@
 import { CurrentUserProvider } from './currentUser';
 import UserSwitcher from './UserSwitcher';
 import ClientAdmin from './ClientAdmin';
-import BackendStatus from './BackendStatus';
 import Scoreboard from './Scoreboard';
+import MorningProjection from './MorningProjection';
+import WeeklyCalendar from './WeeklyCalendar';
+import BackendStatus from './BackendStatus';
 import Portfolio from './Portfolio';
 
 function App() {
@@ -14,7 +16,9 @@ function App() {
         <h1>Hello, Fantasy Timesheets</h1>
         <Scoreboard />
         <Portfolio />
+        <MorningProjection />
         <ClientAdmin />
+        <WeeklyCalendar />
       </main>
     </CurrentUserProvider>
   );
