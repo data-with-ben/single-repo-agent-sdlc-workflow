@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,23 @@ from app.timeentry import log as apply_log
 from app.timeentry import project as apply_project
 
 app = FastAPI(title="Backend API")
+
+# Frontend dev server runs on a different origin (Vite defaults to 5173); the
+# request would otherwise be blocked by the browser before reaching any route
+# below. Fixed to the project's default Vite port -- if that port is ever
+# occupied and Vite auto-increments, this list needs updating too.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 class CreateClientRequest(BaseModel):

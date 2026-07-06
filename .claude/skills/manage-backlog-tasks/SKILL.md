@@ -619,6 +619,21 @@ The same shape works for `--desc`, `--plan`, `--final-summary`, and the `--appen
 
 Prefer forms **1** and **2** when running under Claude Code, Codex, or any agent harness that screens commands through a tree‑sitter AST walker — those harnesses reject ANSI‑C strings, command substitutions, and heredoc forms (see issue [#595](https://github.com/MrLesk/Backlog.md/issues/595)).
 
+**PowerShell-specific gotcha — avoid literal double quotes in the value.** `backlog.ps1` reconstructs a command-line string internally rather than passing arguments as an array, so a value containing a literal `"` breaks out of quoting and gets split into extra positional arguments (`error: too many arguments for 'edit'. Expected 1 argument but got N`). This applies even when the value is stored in a variable first. Workarounds, in order of preference:
+
+1. Don't use `"` inside the note/plan/summary text at all — write around it (e.g. drop quotation marks, or use single quotes) rather than quoting a term.
+2. For long or multi-line content, build the value in a PowerShell here-string and pass the variable — here-strings tolerate embedded `"` safely as long as the string itself doesn't contain a literal `"` (if it must, split the append into smaller chunks around the offending line to isolate it):
+
+   ```powershell
+   $notes = @'
+   Multi-line content here.
+   Avoid embedding literal double quotes; everything else is safe.
+   '@
+   backlog task edit 42 --append-notes $notes
+   ```
+
+If a command fails with this error and the value is long, bisect it (halve the content, retry) rather than guessing — the failure gives no indication of which character or line is at fault.
+
 Do not expect the literal sequence `\n` inside double quotes to become a newline. The CLI stores the backslash and `n` as written.
 
 ### Implementation Notes Formatting
@@ -758,6 +773,7 @@ backlog doc view doc-1
 | AC won't check       | Use correct index: `backlog task 42 --plain` to see AC numbers     |
 | Changes not saving   | Ensure you're using CLI, not editing files                         |
 | Metadata out of sync | Re-edit via CLI to fix: `backlog task edit 42 -s <current-status>` |
+| `error: too many arguments for 'edit'` on Windows | The value passed to `--notes`/`--append-notes`/`--plan`/`--final-summary` contains a literal double-quote character (`"`). The `backlog.ps1` wrapper reconstructs a command-line string rather than passing args as an array, so an embedded `"` breaks out of quoting and gets re-tokenized into extra positional arguments. Fix: rewrite the value without literal `"` (use single quotes or plain prose instead), or build it in a PowerShell here-string (`@'...'@`) and pass the variable — see below. |
 
 ---
 
