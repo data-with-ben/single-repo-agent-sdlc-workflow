@@ -44,6 +44,7 @@ IGNORE_PATTERNS=(
   '\.spec\.(ts|tsx|js|jsx)$'
   '_test\.py$'
   '/test_[^/]+\.py$'
+  '(^|/)backlog/backlog/tasks/'
 )
 
 is_ignored() {
