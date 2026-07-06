@@ -272,11 +272,15 @@ def _serialize_entry(entry: TimeEntry) -> dict:
         "planned_hours": entry.planned_hours,
         "actual_hours": entry.actual_hours,
         "description": entry.description,
-        "projected_at": entry.projected_at.isoformat() if entry.projected_at else None,
-        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "projected_at": (
+            entry.projected_at.isoformat() + "Z" if entry.projected_at else None
+        ),
+        "logged_at": entry.logged_at.isoformat() + "Z" if entry.logged_at else None,
+        "updated_at": entry.updated_at.isoformat() + "Z" if entry.updated_at else None,
         "first_submitted_at": (
-            entry.first_submitted_at.isoformat() if entry.first_submitted_at else None
+            entry.first_submitted_at.isoformat() + "Z"
+            if entry.first_submitted_at
+            else None
         ),
         "state": entry.state,
     }

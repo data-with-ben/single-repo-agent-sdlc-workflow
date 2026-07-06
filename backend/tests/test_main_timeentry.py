@@ -99,6 +99,25 @@ def test_consultant_can_project_against_their_own_assignment(db_and_client):
     assert response.json()["state"] == "projected"
 
 
+def test_serialized_timestamps_are_marked_as_utc(db_and_client):
+    # entry.projected_at etc. are naive datetimes that always represent a
+    # true UTC instant (datetime.now(timezone.utc).replace(tzinfo=None)).
+    # Serializing them without a Z suffix causes JS Date parsing to
+    # misinterpret them as local time instead of UTC, silently shifting
+    # every timestamp by the browser's UTC offset -- verify the fix stays
+    # in place.
+    client, _, consultant, _, acme, _ = db_and_client
+
+    response = client.post(
+        "/time-entries/project",
+        json={"client_id": acme.id, "work_date": "2026-07-06", "planned_hours": 8},
+        headers={"X-User-Id": str(consultant.id)},
+    )
+    body = response.json()
+    assert body["projected_at"].endswith("Z")
+    assert body["first_submitted_at"].endswith("Z")
+
+
 def test_consultant_cannot_submit_against_an_unassigned_client(db_and_client):
     client, _, _, other_consultant, acme, _ = db_and_client
 

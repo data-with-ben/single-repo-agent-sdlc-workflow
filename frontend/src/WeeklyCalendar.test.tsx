@@ -168,6 +168,53 @@ describe('WeeklyCalendar', () => {
     });
   });
 
+  it('computes the perfect-day bonus from the UTC instant, not a timezone-shifted local hour', async () => {
+    // projected_at is a Z-suffixed UTC instant (task-21's serialization fix):
+    // 14:30 UTC on the test's fixed date. Under the pinned America/New_York
+    // (EDT, UTC-4) test timezone, that is 10:30 local -- before the 11am
+    // projection cutoff. If the Z suffix were ever dropped (regressing to
+    // the pre-task-21 bug), the same digits would be misread as 14:30
+    // *local*, which is well past the cutoff -- flipping projectedByEleven
+    // from true to false and silently dropping the perfect-day bonus. This
+    // pins the correct (UTC-aware) interpretation.
+    mockEntries = [
+      {
+        id: 1,
+        consultant_id: 2,
+        client_id: 10,
+        work_date: todayStr,
+        planned_hours: 8,
+        actual_hours: null,
+        description: null,
+        projected_at: `${todayStr}T14:30:00Z`,
+        logged_at: null,
+        updated_at: null,
+        first_submitted_at: `${todayStr}T14:30:00Z`,
+        state: 'projected',
+      },
+    ];
+    // Move "now" past the EOD cutoff (3pm local) on the same day, so both
+    // the eod-update and perfect-day bonuses are in play alongside the
+    // logged-same-day bonus, matching the perfect-day definition (all
+    // three earned) rather than just the projection check in isolation.
+    vi.setSystemTime(new Date('2026-07-07T16:00:00'));
+
+    renderCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Hours')).not.toBeNull();
+    });
+
+    fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText('What did you work on?'), {
+      target: { value: 'Finished the quarterly report draft' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Submitting now: 20 pts \(perfect day\)/)).not.toBeNull();
+    });
+  });
+
   it('does not show a live points hint when a past day is selected', async () => {
     const yesterdayStr = localDateStr(yesterday);
     mockEntries = [
