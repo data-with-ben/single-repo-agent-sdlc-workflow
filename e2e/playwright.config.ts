@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Backend venv layout differs by OS: Scripts/python.exe on Windows,
+// bin/python everywhere else.
 const backendPython =
   process.platform === 'win32' ? '.venv\\Scripts\\python.exe' : '.venv/bin/python';
 
