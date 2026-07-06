@@ -97,23 +97,36 @@ function ClientAdmin() {
   );
 
   return (
-    <section>
+    <section className="card">
       <h2>Clients and assignments</h2>
       <div style={{ display: 'flex', gap: '2rem' }}>
         <div>
           <ul>
-            {clients.map((c) => (
-              <li key={c.id}>
-                <button type="button" onClick={() => setSelectedClientId(c.id)}>
-                  {c.name} {c.status === 'archived' ? '(archived)' : ''}
-                </button>
-                {isAdmin && c.status === 'active' && (
-                  <button type="button" onClick={() => handleArchive(c.id)}>
-                    Archive
+            {clients.map((c) => {
+              const isSelected = c.id === selectedClientId;
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    className={`tile${isSelected ? ' is-selected' : ''}${
+                      c.status === 'archived' ? ' text-muted' : ''
+                    }`}
+                    onClick={() => setSelectedClientId(c.id)}
+                  >
+                    {c.name} {c.status === 'archived' ? '(archived)' : ''}
                   </button>
-                )}
-              </li>
-            ))}
+                  {isAdmin && c.status === 'active' && (
+                    <button
+                      type="button"
+                      className="pill-btn"
+                      onClick={() => handleArchive(c.id)}
+                    >
+                      Archive
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           {isAdmin && (
             <div>
@@ -122,7 +135,7 @@ function ClientAdmin() {
                 value={newClientName}
                 onChange={(e) => setNewClientName(e.target.value)}
               />
-              <button type="button" onClick={handleAddClient}>
+              <button type="button" className="pill-btn" onClick={handleAddClient}>
                 + Add client
               </button>
             </div>

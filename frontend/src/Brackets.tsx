@@ -44,11 +44,11 @@ function Brackets() {
   }
 
   return (
-    <section>
+    <section className="card">
       <h2>This week&apos;s brackets</h2>
       <ul>
         {brackets.matchups.map((m) => (
-          <li key={`${m.user_a_id}-${m.user_b_id}`}>
+          <li key={`${m.user_a_id}-${m.user_b_id}`} className="card">
             <span
               style={{ fontWeight: m.winner_id === m.user_a_id ? 'bold' : 'normal' }}
             >
@@ -64,7 +64,9 @@ function Brackets() {
           </li>
         ))}
       </ul>
-      {brackets.bye_user_id !== null && <p>Bye this week: user {brackets.bye_user_id}</p>}
+      {brackets.bye_user_id !== null && (
+        <p className="text-muted">Bye this week: user {brackets.bye_user_id}</p>
+      )}
     </section>
   );
 }

@@ -45,13 +45,17 @@ function checkmark(value: boolean): string {
   return value ? '✓' : '—';
 }
 
+function Checkmark({ value }: { value: boolean }) {
+  return <span className={value ? 'text-success' : 'text-muted'}>{checkmark(value)}</span>;
+}
+
 function TeamTable({ team, starConsultantId }: { team: ApiTeamBoxScore; starConsultantId: number | null }) {
   return (
     <div>
       <h4>
         {team.team_name} · {team.normalized_score.toFixed(1)}/member
       </h4>
-      <table>
+      <table className="table">
         <thead>
           <tr>
             <th>Player</th>
@@ -65,15 +69,17 @@ function TeamTable({ team, starConsultantId }: { team: ApiTeamBoxScore; starCons
           {team.players.map((p) => (
             <tr key={p.consultant_id}>
               <td>{p.display_name}</td>
-              <td>{checkmark(p.projected_by_11)}</td>
-              <td>{checkmark(p.logged_same_day)}</td>
-              <td>{checkmark(p.eod_update)}</td>
+              <td><Checkmark value={p.projected_by_11} /></td>
+              <td><Checkmark value={p.logged_same_day} /></td>
+              <td><Checkmark value={p.eod_update} /></td>
               <td>{p.points}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {team.team_bonus_applied && <p>Team bonus: all projected by 11am (+10)</p>}
+      {team.team_bonus_applied && (
+        <p className="text-success">Team bonus: all projected by 11am (+10)</p>
+      )}
       {team.players.some((p) => p.consultant_id === starConsultantId) && (
         <p aria-label="Star of the game">
           Star of the game: {team.players.find((p) => p.consultant_id === starConsultantId)?.display_name}
@@ -113,30 +119,31 @@ function Scoreboard() {
     selectedGame?.revealed && boxScore?.game_id === selectedGameId ? boxScore : null;
 
   return (
-    <section>
+    <section className="card">
       <h2>Today&apos;s games</h2>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
-        {games.map((game) => (
-          <button
-            key={game.id}
-            type="button"
-            aria-label={`${game.home_team_name} vs ${game.away_team_name}`}
-            onClick={() => game.revealed && setSelectedGameId(game.id)}
-            style={{
-              border: game.id === selectedGameId ? '2px solid blue' : '1px solid gray',
-              padding: '0.5rem',
-              textAlign: 'left',
-            }}
-          >
-            <div>{game.revealed ? `Final · ${game.game_date}` : 'In progress · hidden'}</div>
-            <div>
-              {game.home_team_name} {scoreLabel(game.revealed, game.home_score)}
-            </div>
-            <div>
-              {game.away_team_name} {scoreLabel(game.revealed, game.away_score)}
-            </div>
-          </button>
-        ))}
+        {games.map((game) => {
+          const isSelected = game.id === selectedGameId;
+          return (
+            <button
+              key={game.id}
+              type="button"
+              aria-label={`${game.home_team_name} vs ${game.away_team_name}`}
+              onClick={() => game.revealed && setSelectedGameId(game.id)}
+              className={`tile${isSelected ? ' is-selected' : ''}`}
+            >
+              <div className={game.revealed ? 'text-muted' : 'badge badge--warning'}>
+                {game.revealed ? `Final · ${game.game_date}` : 'In progress · hidden'}
+              </div>
+              <div>
+                {game.home_team_name} {scoreLabel(game.revealed, game.home_score)}
+              </div>
+              <div>
+                {game.away_team_name} {scoreLabel(game.revealed, game.away_score)}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {visibleBoxScore && (

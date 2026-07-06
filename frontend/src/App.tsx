@@ -11,7 +11,7 @@ import Brackets from './Brackets';
 function App() {
   return (
     <CurrentUserProvider>
-      <main>
+      <main className="app-shell">
         <BackendStatus />
         <UserSwitcher />
         <h1>Hello, Fantasy Timesheets</h1>

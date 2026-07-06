@@ -138,6 +138,13 @@ const STATUS_LABELS: Record<DayStatus, string> = {
   pending: 'Not yet',
 };
 
+const STATUS_BADGE_CLASS: Record<DayStatus, string> = {
+  logged: 'badge badge--success',
+  late: 'badge badge--warning',
+  missing: 'badge badge--danger',
+  pending: 'badge',
+};
+
 function WeeklyCalendar() {
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => localDateStr(today), [today]);
@@ -239,7 +246,7 @@ function WeeklyCalendar() {
     : null;
 
   return (
-    <section>
+    <section className="card">
       <h2>Weekly calendar</h2>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         {days.map((day, i) => {
@@ -254,18 +261,14 @@ function WeeklyCalendar() {
               aria-label={`${DAY_LABELS[i]} ${day}${day === todayStr ? ' (today)' : ''}`}
               aria-current={isSelected ? 'date' : undefined}
               onClick={() => setSelectedDate(day)}
-              style={{
-                border: isSelected ? '2px solid blue' : '1px solid gray',
-                padding: '0.5rem',
-                textAlign: 'left',
-              }}
+              className={`tile${isSelected ? ' is-selected' : ''}`}
             >
               <div>
                 {DAY_LABELS[i]} {day.slice(8, 10)}
                 {day === todayStr ? ' · today' : ''}
               </div>
               <div>{hours > 0 ? `${hours}h` : '—'}</div>
-              <div>{STATUS_LABELS[status]}</div>
+              <div className={STATUS_BADGE_CLASS[status]}>{STATUS_LABELS[status]}</div>
             </button>
           );
         })}
@@ -318,7 +321,7 @@ function WeeklyCalendar() {
           </p>
         )}
 
-        <button type="button" onClick={handleSubmit}>
+        <button type="button" className="pill-btn pill-btn--primary" onClick={handleSubmit}>
           Submit entry
         </button>
       </div>

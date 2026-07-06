@@ -29,7 +29,7 @@ function UserSwitcher() {
   }, []);
 
   return (
-    <label>
+    <label className="card user-switcher">
       Current user:
       <select
         value={currentUserId ?? ''}
