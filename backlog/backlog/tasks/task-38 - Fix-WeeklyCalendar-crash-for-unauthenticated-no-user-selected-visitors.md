@@ -1,11 +1,11 @@
 ---
 id: TASK-38
 title: Fix WeeklyCalendar crash for unauthenticated/no-user-selected visitors
-status: Intake
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-06 02:49'
-updated_date: '2026-07-06 02:54'
+updated_date: '2026-07-06 02:58'
 labels: []
 dependencies: []
 references:
