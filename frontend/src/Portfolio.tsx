@@ -49,6 +49,7 @@ function pct(value: number): string {
 function Portfolio() {
   const [portfolio, setPortfolio] = useState<ApiPortfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nudgeStatus, setNudgeStatus] = useState<string | null>(null);
   const [showExchange, setShowExchange] = useState(false);
   const [exchange, setExchange] = useState<ApiExchangeListing[] | null>(null);
 
@@ -86,6 +87,22 @@ function Portfolio() {
     load();
   };
 
+  const nudge = async (consultantId: number) => {
+    setError(null);
+    setNudgeStatus(null);
+    const response = await apiFetch('/nudge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consultant_id: consultantId }),
+    });
+    if (!response.ok) {
+      const body = await response.json();
+      setError(body.detail ?? 'Nudge failed');
+      return;
+    }
+    setNudgeStatus('Nudge sent!');
+  };
+
   if (!portfolio) {
     return null;
   }
@@ -95,6 +112,7 @@ function Portfolio() {
       <h2>Your portfolio</h2>
       <p>Wallet: {portfolio.wallet_balance.toFixed(0)} pts</p>
       {error && <p role="alert">{error}</p>}
+      {nudgeStatus && <p>{nudgeStatus}</p>}
 
       <table>
         <thead>
@@ -124,6 +142,9 @@ function Portfolio() {
                   onClick={() => trade('/trade/sell', h.consultant_id)}
                 >
                   Sell
+                </button>
+                <button type="button" onClick={() => nudge(h.consultant_id)}>
+                  Nudge
                 </button>
               </td>
             </tr>

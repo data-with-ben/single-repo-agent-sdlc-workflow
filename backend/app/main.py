@@ -9,12 +9,14 @@ from app.auth import get_current_user, require_role
 from app.box_score import box_score_for_game, game_summary
 from app.db import get_db
 from app.models import Assignment, Client, Game, ObjectiveResult, Team, TimeEntry, User
+from app.notifications import list_notifications, send_nudge
 from app.portfolio import exchange_listing, portfolio_summary
 from app.timeentry import IllegalTransitionError
 from app.timeentry import eod_update as apply_eod_update
 from app.timeentry import log as apply_log
 from app.timeentry import project as apply_project
 from app.trading import execute_buy, execute_sell
+from app.weekly_wrap import generate_weekly_wrap
 
 app = FastAPI(title="Backend API")
 
@@ -514,6 +516,62 @@ def trade_sell(
         "price_per_share": txn.price_per_share,
         "total": txn.total,
     }
+
+
+@app.get("/weekly-wrap")
+def get_weekly_wrap(
+    week_start: date,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    start = datetime(week_start.year, week_start.month, week_start.day)
+    end = start + timedelta(days=7)
+    wrap = generate_weekly_wrap(db, start, end)
+    return {
+        "team_records": [vars(r) for r in wrap.team_records],
+        "biggest_market_swing": (
+            vars(wrap.biggest_market_swing) if wrap.biggest_market_swing else None
+        ),
+        "star_performer": (
+            vars(wrap.star_performer) if wrap.star_performer else None
+        ),
+    }
+
+
+class NudgeRequest(BaseModel):
+    consultant_id: int
+
+
+@app.post("/nudge")
+def post_nudge(
+    body: NudgeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        notification = send_nudge(db, user.id, body.consultant_id, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {"id": notification.id, "message": notification.message}
+
+
+@app.get("/me/notifications")
+def get_my_notifications(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    return [
+        {
+            "id": n.id,
+            "sender_id": n.sender_id,
+            "message": n.message,
+            "created_at": n.created_at.isoformat() + "Z",
+            "read": n.read,
+        }
+        for n in list_notifications(db, user.id)
+    ]
 
 
 @app.get("/me/time-entries")

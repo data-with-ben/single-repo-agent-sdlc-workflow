@@ -154,4 +154,20 @@ describe('Portfolio', () => {
       expect(screen.getByText('Chen W.')).not.toBeNull();
     });
   });
+
+  it('sends a nudge and shows a confirmation', async () => {
+    render(<Portfolio />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nudge')).not.toBeNull();
+    });
+    fireEvent.click(screen.getByText('Nudge'));
+
+    await waitFor(() => {
+      expect(postCalls.some((c) => c.path === '/nudge')).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Nudge sent!')).not.toBeNull();
+    });
+  });
 });
