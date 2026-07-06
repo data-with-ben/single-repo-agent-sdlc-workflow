@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
 from app.box_score import box_score_for_game, game_summary
+from app.brackets import weekly_brackets
 from app.db import get_db
 from app.models import Assignment, Client, Game, ObjectiveResult, Team, TimeEntry, User
 from app.notifications import list_notifications, send_nudge
@@ -572,6 +573,32 @@ def get_my_notifications(
         }
         for n in list_notifications(db, user.id)
     ]
+
+
+@app.get("/brackets")
+def get_brackets(
+    week_start: date,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    start = datetime(week_start.year, week_start.month, week_start.day)
+    end = start + timedelta(days=7)
+    results, bye_user_id = weekly_brackets(db, start, end)
+    return {
+        "matchups": [
+            {
+                "user_a_id": r.user_a_id,
+                "user_a_display_name": r.user_a_display_name,
+                "user_a_gain": r.user_a_gain,
+                "user_b_id": r.user_b_id,
+                "user_b_display_name": r.user_b_display_name,
+                "user_b_gain": r.user_b_gain,
+                "winner_id": r.winner_id,
+            }
+            for r in results
+        ],
+        "bye_user_id": bye_user_id,
+    }
 
 
 @app.get("/me/time-entries")
