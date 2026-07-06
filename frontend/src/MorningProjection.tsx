@@ -63,6 +63,13 @@ const STATUS_LABELS: Record<ClientStatus, string> = {
   open: 'Open',
 };
 
+const STATUS_BADGE_CLASS: Record<ClientStatus, string> = {
+  'locked-in': 'badge badge--success',
+  'missed-late': 'badge badge--danger',
+  'missed-not-projected': 'badge badge--danger',
+  open: 'badge',
+};
+
 function MorningProjection() {
   const [clients, setClients] = useState<ApiClient[]>([]);
   const [entries, setEntries] = useState<ApiTimeEntry[]>([]);
@@ -121,9 +128,9 @@ function MorningProjection() {
     : 'Cutoff passed';
 
   return (
-    <section>
+    <section className="card">
       <h2>Project your day</h2>
-      <p>{countdownText}</p>
+      <p className="text-muted">{countdownText}</p>
       <ul>
         {clients.map((c) => {
           const entry = entryByClientId.get(c.id);
@@ -132,7 +139,7 @@ function MorningProjection() {
           return (
             <li key={c.id}>
               <span>{c.name}</span>
-              <span>{STATUS_LABELS[status]}</span>
+              <span className={STATUS_BADGE_CLASS[status]}>{STATUS_LABELS[status]}</span>
               {canSubmit && (
                 <>
                   <input
@@ -143,7 +150,11 @@ function MorningProjection() {
                       setHoursByClient((prev) => ({ ...prev, [c.id]: e.target.value }))
                     }
                   />
-                  <button type="button" onClick={() => handleSubmit(c.id)}>
+                  <button
+                    type="button"
+                    className="pill-btn pill-btn--primary"
+                    onClick={() => handleSubmit(c.id)}
+                  >
                     Project
                   </button>
                 </>

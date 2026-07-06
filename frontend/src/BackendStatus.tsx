@@ -25,9 +25,9 @@ function BackendStatus() {
     };
   }, []);
 
-  if (status === 'loading') return <p>Checking backend status...</p>;
-  if (status === 'ok') return <p>Backend: ok</p>;
-  return <p>Backend unavailable</p>;
+  if (status === 'loading') return <p className="text-muted">Checking backend status...</p>;
+  if (status === 'ok') return <p className="text-success">Backend: ok</p>;
+  return <p className="text-danger">Backend unavailable</p>;
 }
 
 export default BackendStatus;

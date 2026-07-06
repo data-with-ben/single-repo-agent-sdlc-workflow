@@ -46,6 +46,10 @@ function pct(value: number): string {
   return `${sign}${value.toFixed(0)}%`;
 }
 
+function Pct({ value }: { value: number }) {
+  return <span className={value >= 0 ? 'text-success' : 'text-danger'}>{pct(value)}</span>;
+}
+
 function Portfolio() {
   const [portfolio, setPortfolio] = useState<ApiPortfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,13 +112,17 @@ function Portfolio() {
   }
 
   return (
-    <section>
+    <section className="card">
       <h2>Your portfolio</h2>
       <p>Wallet: {portfolio.wallet_balance.toFixed(0)} pts</p>
-      {error && <p role="alert">{error}</p>}
-      {nudgeStatus && <p>{nudgeStatus}</p>}
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
+      {nudgeStatus && <p className="text-success">{nudgeStatus}</p>}
 
-      <table>
+      <table className="table">
         <thead>
           <tr>
             <th>Consultant</th>
@@ -132,7 +140,7 @@ function Portfolio() {
               <td>{h.shares}</td>
               <td>{h.buy_price.toFixed(1)}</td>
               <td>{h.sell_price.toFixed(1)}</td>
-              <td>{pct(h.movement_pct)}</td>
+              <td><Pct value={h.movement_pct} /></td>
               <td>
                 <button type="button" onClick={() => trade('/trade/buy', h.consultant_id)}>
                   Buy
@@ -169,19 +177,23 @@ function Portfolio() {
           <ul>
             {portfolio.market_movers.map((m) => (
               <li key={m.consultant_id}>
-                {m.display_name} {pct(m.movement_pct)}
+                {m.display_name} <Pct value={m.movement_pct} />
               </li>
             ))}
           </ul>
         </div>
       </div>
 
-      <button type="button" onClick={() => setShowExchange((prev) => !prev)}>
+      <button
+        type="button"
+        className="pill-btn"
+        onClick={() => setShowExchange((prev) => !prev)}
+      >
         Browse the exchange
       </button>
 
       {showExchange && exchange && (
-        <table>
+        <table className="table">
           <thead>
             <tr>
               <th>Consultant</th>
