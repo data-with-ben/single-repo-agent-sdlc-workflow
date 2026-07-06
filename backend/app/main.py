@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,18 +6,22 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_role
+from app.box_score import box_score_for_game, game_summary
+from app.brackets import weekly_brackets
 from app.db import get_db
-from app.models import Assignment, Client, TimeEntry, User
+from app.models import Assignment, Client, Game, ObjectiveResult, Team, TimeEntry, User
+from app.notifications import list_notifications, send_nudge
+from app.portfolio import exchange_listing, portfolio_summary
 from app.timeentry import IllegalTransitionError
 from app.timeentry import eod_update as apply_eod_update
 from app.timeentry import log as apply_log
 from app.timeentry import project as apply_project
+from app.trading import execute_buy, execute_sell
+from app.weekly_wrap import generate_weekly_wrap
 
 app = FastAPI(title="Backend API")
 
-# Frontend dev server runs on a different origin (Vite defaults to 5173); the
-# request would otherwise be blocked by the browser before reaching any route
-# below. Fixed to the project's default Vite port -- if that port is ever
+# Vite's dev server runs on :5173 by default; if that port is already
 # occupied and Vite auto-increments, this list needs updating too.
 app.add_middleware(
     CORSMiddleware,
@@ -272,11 +276,15 @@ def _serialize_entry(entry: TimeEntry) -> dict:
         "planned_hours": entry.planned_hours,
         "actual_hours": entry.actual_hours,
         "description": entry.description,
-        "projected_at": entry.projected_at.isoformat() if entry.projected_at else None,
-        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
-        "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+        "projected_at": (
+            entry.projected_at.isoformat() + "Z" if entry.projected_at else None
+        ),
+        "logged_at": entry.logged_at.isoformat() + "Z" if entry.logged_at else None,
+        "updated_at": entry.updated_at.isoformat() + "Z" if entry.updated_at else None,
         "first_submitted_at": (
-            entry.first_submitted_at.isoformat() if entry.first_submitted_at else None
+            entry.first_submitted_at.isoformat() + "Z"
+            if entry.first_submitted_at
+            else None
         ),
         "state": entry.state,
     }
@@ -333,3 +341,282 @@ def eod_update_time_entry(
     )
     db.commit()
     return _serialize_entry(entry)
+
+
+def _team_names_for(db: Session, team_ids: set[int]) -> dict[int, str]:
+    teams = db.query(Team).filter(Team.id.in_(team_ids)).all()
+    return {t.id: t.name for t in teams}
+
+
+@app.get("/games")
+def list_games(
+    work_date: date | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    # Matches wireframe 4 (games-view.png): "today's" slate is shown
+    # alongside the most recently revealed game (labeled "Final ·
+    # yesterday" there), not just an exact single-date match -- a
+    # single-date filter would show nothing on a weekend/off day with no
+    # scheduled games of its own, hiding the last real result. A 5-day
+    # trailing window reliably reaches back to the last workday regardless
+    # of where in the week "today" falls.
+    target_date = work_date or datetime.now(timezone.utc).date()
+    end = datetime(target_date.year, target_date.month, target_date.day) + timedelta(
+        days=1
+    )
+    start = end - timedelta(days=5)
+
+    games = (
+        db.query(Game).filter(Game.game_date >= start, Game.game_date < end).all()
+    )
+    team_names = _team_names_for(
+        db, {g.home_team_id for g in games} | {g.away_team_id for g in games}
+    )
+    is_admin = "admin" in user.roles
+
+    return [
+        game_summary(
+            game, team_names[game.home_team_id], team_names[game.away_team_id], is_admin
+        )
+        for game in games
+    ]
+
+
+def _get_game_or_404(db: Session, game_id: int) -> Game:
+    game = db.get(Game, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
+
+
+@app.get("/games/{game_id}/box-score")
+def get_box_score(
+    game_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    game = _get_game_or_404(db, game_id)
+    is_admin = "admin" in user.roles
+    if not game.revealed and not is_admin:
+        raise HTTPException(status_code=403, detail="Scores are hidden until reveal")
+
+    objective_results = (
+        db.query(ObjectiveResult).filter(ObjectiveResult.game_id == game_id).all()
+    )
+    team_names = _team_names_for(db, {game.home_team_id, game.away_team_id})
+    consultant_ids = {r.consultant_id for r in objective_results}
+    display_names = {
+        u.id: u.display_name
+        for u in db.query(User).filter(User.id.in_(consultant_ids)).all()
+    }
+
+    box = box_score_for_game(
+        game,
+        objective_results,
+        team_names[game.home_team_id],
+        team_names[game.away_team_id],
+        display_names,
+    )
+    return {
+        "game_id": box.game_id,
+        "home": {
+            "team_id": box.home.team_id,
+            "team_name": box.home.team_name,
+            "normalized_score": box.home.normalized_score,
+            "team_bonus_applied": box.home.team_bonus_applied,
+            "players": [vars(p) for p in box.home.players],
+        },
+        "away": {
+            "team_id": box.away.team_id,
+            "team_name": box.away.team_name,
+            "normalized_score": box.away.normalized_score,
+            "team_bonus_applied": box.away.team_bonus_applied,
+            "players": [vars(p) for p in box.away.players],
+        },
+        "star_of_game_consultant_id": box.star_of_game_consultant_id,
+    }
+
+
+class TradeRequest(BaseModel):
+    consultant_id: int
+    shares: int
+
+
+@app.get("/exchange")
+def list_exchange(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    return [vars(listing) for listing in exchange_listing(db, now)]
+
+
+@app.get("/me/portfolio")
+def get_my_portfolio(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    summary = portfolio_summary(db, user.id, now)
+    return {
+        "wallet_balance": summary["wallet_balance"],
+        "holdings": [vars(h) for h in summary["holdings"]],
+        "dividends": [
+            {
+                "consultant_id": d.consultant_id,
+                "game_date": d.game_date.date().isoformat(),
+                "reason": d.reason,
+                "shares": d.shares,
+                "per_share": d.per_share,
+                "total": d.total,
+            }
+            for d in summary["dividends"]
+        ],
+        "market_movers": [vars(m) for m in summary["market_movers"]],
+    }
+
+
+@app.post("/trade/buy")
+def trade_buy(
+    body: TradeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        txn = execute_buy(db, user.id, body.consultant_id, body.shares, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {
+        "id": txn.id,
+        "side": txn.side,
+        "shares": txn.shares,
+        "price_per_share": txn.price_per_share,
+        "total": txn.total,
+    }
+
+
+@app.post("/trade/sell")
+def trade_sell(
+    body: TradeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        txn = execute_sell(db, user.id, body.consultant_id, body.shares, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {
+        "id": txn.id,
+        "side": txn.side,
+        "shares": txn.shares,
+        "price_per_share": txn.price_per_share,
+        "total": txn.total,
+    }
+
+
+@app.get("/weekly-wrap")
+def get_weekly_wrap(
+    week_start: date,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    start = datetime(week_start.year, week_start.month, week_start.day)
+    end = start + timedelta(days=7)
+    wrap = generate_weekly_wrap(db, start, end)
+    return {
+        "team_records": [vars(r) for r in wrap.team_records],
+        "biggest_market_swing": (
+            vars(wrap.biggest_market_swing) if wrap.biggest_market_swing else None
+        ),
+        "star_performer": (
+            vars(wrap.star_performer) if wrap.star_performer else None
+        ),
+    }
+
+
+class NudgeRequest(BaseModel):
+    consultant_id: int
+
+
+@app.post("/nudge")
+def post_nudge(
+    body: NudgeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        notification = send_nudge(db, user.id, body.consultant_id, now)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return {"id": notification.id, "message": notification.message}
+
+
+@app.get("/me/notifications")
+def get_my_notifications(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    return [
+        {
+            "id": n.id,
+            "sender_id": n.sender_id,
+            "message": n.message,
+            "created_at": n.created_at.isoformat() + "Z",
+            "read": n.read,
+        }
+        for n in list_notifications(db, user.id)
+    ]
+
+
+@app.get("/brackets")
+def get_brackets(
+    week_start: date,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    start = datetime(week_start.year, week_start.month, week_start.day)
+    end = start + timedelta(days=7)
+    results, bye_user_id = weekly_brackets(db, start, end)
+    return {
+        "matchups": [
+            {
+                "user_a_id": r.user_a_id,
+                "user_a_display_name": r.user_a_display_name,
+                "user_a_gain": r.user_a_gain,
+                "user_b_id": r.user_b_id,
+                "user_b_display_name": r.user_b_display_name,
+                "user_b_gain": r.user_b_gain,
+                "winner_id": r.winner_id,
+            }
+            for r in results
+        ],
+        "bye_user_id": bye_user_id,
+    }
+
+
+@app.get("/me/time-entries")
+def list_my_time_entries(
+    start: date,
+    end: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.min.time())
+    entries = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.consultant_id == user.id,
+            TimeEntry.work_date >= start_dt,
+            TimeEntry.work_date <= end_dt,
+        )
+        .all()
+    )
+    return [_serialize_entry(e) for e in entries]
