@@ -35,7 +35,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Holding, ObjectiveResult, Transaction, Wallet
+from app.models import Holding, ObjectiveResult, Season, Transaction, User, Wallet
 from app.pricing import (
     PriceQuote,
     apply_trade_pressure,
@@ -101,6 +101,30 @@ def quote_for_consultant(
     return price_quote(rolling_avg_score, demand_pressure)
 
 
+def is_tradable(db: Session, consultant_id: int) -> bool:
+    """SPEC.md Section 8: a new hire enters the market with fresh supply at
+    the start of the next season, not immediately. No new persisted state
+    is needed -- Season.start_date and User.created_at (both already in the
+    required data model) are sufficient: a consultant is tradable once a
+    season has started on or after their hire date. Depends only on which
+    Season is currently marked active (a stored, authoritative flag set by
+    season.start_new_season), not on the caller's "now" -- matching how the
+    rest of this codebase already treats active status, not date math
+    against the clock, as the source of truth for which season is current.
+    """
+    active_season = (
+        db.query(Season)
+        .filter(Season.status == "active")
+        .order_by(Season.start_date.desc())
+        .first()
+    )
+    if active_season is None:
+        return True
+
+    consultant = db.get(User, consultant_id)
+    return consultant.created_at <= active_season.start_date
+
+
 def _get_or_create_wallet(db: Session, user_id: int) -> Wallet:
     wallet = db.get(Wallet, user_id)
     if wallet is None:
@@ -128,6 +152,12 @@ def execute_buy(
 ) -> Transaction:
     if shares <= 0:
         raise ValueError("shares must be positive")
+
+    if not is_tradable(db, consultant_id):
+        raise ValueError(
+            "this consultant is not yet tradable -- new hires enter the "
+            "market at the next season boundary"
+        )
 
     quote = quote_for_consultant(db, consultant_id, now)
     total_cost = shares * quote.buy_price

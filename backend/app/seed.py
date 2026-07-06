@@ -134,8 +134,17 @@ def seed() -> None:
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
+        # Computed up front (before any User rows are created) so staff can
+        # be backdated to before the season starts below -- task-32's new-
+        # hire IPO gate (trading.is_tradable) treats anyone created after
+        # the active season's start_date as a fresh mid-season hire, not
+        # yet tradable. This seed script models existing staff, not new
+        # hires, so they must predate the season they're already playing.
+        work_days = _last_n_workdays(WORKDAYS_SEEDED, now)
+        staff_since = work_days[0] - timedelta(days=1)
+
         clients = [
-            Client(name=name, status="active", created_at=now)
+            Client(name=name, status="active", created_at=staff_since)
             for name in ["Acme Corp", "Globex", "Initech"]
         ]
         session.add_all(clients)
@@ -145,7 +154,7 @@ def seed() -> None:
             display_name="Morgan Manager",
             email="morgan.manager@example.com",
             roles=["admin"],
-            created_at=now,
+            created_at=staff_since,
             status="active",
         )
         # A dual-role user, matching SPEC.md Section 2: a manager "may also
@@ -154,7 +163,7 @@ def seed() -> None:
             display_name="Riley Player-Manager",
             email="riley.playermanager@example.com",
             roles=["admin", "consultant"],
-            created_at=now,
+            created_at=staff_since,
             status="active",
         )
         session.add_all([manager, player_manager])
@@ -167,7 +176,7 @@ def seed() -> None:
                     display_name=f"Consultant {i + 1}",
                     email=f"consultant{i + 1}@example.com",
                     roles=["consultant"],
-                    created_at=now,
+                    created_at=staff_since,
                     status="active",
                 )
             )
@@ -181,7 +190,7 @@ def seed() -> None:
                     Assignment(
                         consultant_id=consultant.id,
                         client_id=client.id,
-                        start_date=now,
+                        start_date=staff_since,
                     )
                 )
         session.flush()

@@ -16,7 +16,7 @@ from app.models import (
     Wallet,
 )
 from app.pricing import price_quote
-from app.trading import OWNERSHIP_CAP_SHARES, execute_buy, execute_sell
+from app.trading import OWNERSHIP_CAP_SHARES, execute_buy, execute_sell, is_tradable
 
 NOW = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -35,11 +35,16 @@ _email_counter = iter(range(1_000_000))
 
 
 def _make_user(db_session, roles=None) -> User:
+    # created_at is fixed well in the past (not NOW) so every user made by
+    # this helper predates any Season a test creates -- otherwise task-32's
+    # new-hire IPO gate (trading.is_tradable) would reject trades in tests
+    # that create a Season only to satisfy ObjectiveResult's FK, not to
+    # exercise season-boundary behavior.
     user = User(
         display_name=f"User {next(_email_counter)}",
         email=f"user{next(_email_counter)}@example.com",
         roles=roles or ["consultant"],
-        created_at=NOW,
+        created_at=datetime(2020, 1, 1),
         status="active",
     )
     db_session.add(user)
@@ -327,3 +332,129 @@ class TestPriceSourcing:
         db_session.commit()
 
         assert second_txn.price_per_share > first_txn.price_per_share
+
+
+class TestNewHireIpo:
+    def _make_season(self, db_session, start_date, status="active"):
+        season = Season(
+            name="S",
+            start_date=start_date,
+            end_date=start_date + timedelta(days=30),
+            status=status,
+            team_size=4,
+        )
+        db_session.add(season)
+        db_session.commit()
+        return season
+
+    def test_no_active_season_defaults_to_tradable(self, db_session):
+        consultant = _make_user(db_session)
+
+        assert is_tradable(db_session, consultant.id) is True
+
+    def test_consultant_created_before_season_start_is_tradable(self, db_session):
+        season_start = NOW
+        consultant = User(
+            display_name="Pre-existing",
+            email="preexisting@example.com",
+            roles=["consultant"],
+            created_at=season_start - timedelta(days=5),
+            status="active",
+        )
+        db_session.add(consultant)
+        db_session.commit()
+        self._make_season(db_session, season_start)
+
+        assert is_tradable(db_session, consultant.id) is True
+
+    def test_consultant_created_after_season_start_is_not_tradable(self, db_session):
+        season_start = NOW - timedelta(days=5)
+        new_hire = User(
+            display_name="New Hire",
+            email="newhire@example.com",
+            roles=["consultant"],
+            created_at=NOW,
+            status="active",
+        )
+        db_session.add(new_hire)
+        db_session.commit()
+        self._make_season(db_session, season_start)
+
+        assert is_tradable(db_session, new_hire.id) is False
+
+    def test_buying_a_not_yet_tradable_consultant_is_rejected(self, db_session):
+        buyer = _make_user(db_session)
+        _fund_wallet(db_session, buyer.id, balance=100000.0)
+        season_start = NOW - timedelta(days=5)
+        new_hire = User(
+            display_name="New Hire",
+            email="newhire2@example.com",
+            roles=["consultant"],
+            created_at=NOW,
+            status="active",
+        )
+        db_session.add(new_hire)
+        db_session.commit()
+        self._make_season(db_session, season_start)
+
+        with pytest.raises(ValueError, match="not yet tradable"):
+            execute_buy(db_session, buyer.id, new_hire.id, shares=1, now=NOW)
+
+    def test_new_hire_becomes_tradable_at_the_next_season_boundary(self, db_session):
+        buyer = _make_user(db_session)
+        _fund_wallet(db_session, buyer.id, balance=100000.0)
+        new_hire = User(
+            display_name="New Hire",
+            email="newhire3@example.com",
+            roles=["consultant"],
+            created_at=NOW,
+            status="active",
+        )
+        db_session.add(new_hire)
+        db_session.commit()
+        self._make_season(db_session, NOW - timedelta(days=5))
+
+        with pytest.raises(ValueError, match="not yet tradable"):
+            execute_buy(db_session, buyer.id, new_hire.id, shares=1, now=NOW)
+
+        # The next season boundary: a new season starts on/after the hire.
+        self._make_season(
+            db_session, NOW + timedelta(days=1), status="complete"
+        )
+        db_session.query(Season).filter(Season.status == "active").update(
+            {"status": "complete"}
+        )
+        db_session.commit()
+        next_season = self._make_season(db_session, NOW + timedelta(days=1))
+
+        assert is_tradable(db_session, new_hire.id) is True
+        txn = execute_buy(
+            db_session,
+            buyer.id,
+            new_hire.id,
+            shares=1,
+            now=next_season.start_date,
+        )
+        assert txn.consultant_id == new_hire.id
+
+    def test_ownership_cap_still_applies_once_tradable(self, db_session):
+        buyer = _make_user(db_session)
+        _fund_wallet(db_session, buyer.id, balance=1000000.0)
+        new_hire = User(
+            display_name="New Hire",
+            email="newhire4@example.com",
+            roles=["consultant"],
+            created_at=NOW - timedelta(days=10),
+            status="active",
+        )
+        db_session.add(new_hire)
+        db_session.commit()
+        self._make_season(db_session, NOW - timedelta(days=5))
+
+        execute_buy(
+            db_session, buyer.id, new_hire.id, shares=OWNERSHIP_CAP_SHARES, now=NOW
+        )
+        db_session.commit()
+
+        with pytest.raises(ValueError, match="ownership cap"):
+            execute_buy(db_session, buyer.id, new_hire.id, shares=1, now=NOW)

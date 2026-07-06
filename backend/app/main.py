@@ -18,9 +18,7 @@ from app.trading import execute_buy, execute_sell
 
 app = FastAPI(title="Backend API")
 
-# Frontend dev server runs on a different origin (Vite defaults to 5173); the
-# request would otherwise be blocked by the browser before reaching any route
-# below. Fixed to the project's default Vite port -- if that port is ever
+# Vite's dev server runs on :5173 by default; if that port is already
 # occupied and Vite auto-increments, this list needs updating too.
 app.add_middleware(
     CORSMiddleware,
@@ -435,6 +433,7 @@ def get_box_score(
         },
         "star_of_game_consultant_id": box.star_of_game_consultant_id,
     }
+
 
 class TradeRequest(BaseModel):
     consultant_id: int
