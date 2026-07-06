@@ -1,11 +1,11 @@
 ---
 id: TASK-39
 title: Apply a dark-theme design system across the app
-status: AI Code Review
+status: Done
 assignee:
   - '@agent'
 created_date: '2026-07-06 03:12'
-updated_date: '2026-07-06 03:32'
+updated_date: '2026-07-06 03:34'
 labels: []
 dependencies: []
 references:
